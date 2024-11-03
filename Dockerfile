@@ -81,6 +81,8 @@ RUN git clone https://github.com/crystian/ComfyUI-Crystools.git /comfyui/custom_
 WORKDIR /comfyui/custom_nodes/ComfyUI-Crystools
 RUN pip3 install -r requirements.txt
 
+RUN git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes /comfyui/custom_nodes/ComfyUI_Comfyroll_CustomNodes
+
 WORKDIR /
 
 # Start the container
