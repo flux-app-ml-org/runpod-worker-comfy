@@ -75,5 +75,9 @@ FROM base as final
 # Copy models from stage 2 to the final image
 COPY --from=downloader /comfyui/models /comfyui/models
 
+RUN git clone https://github.com/fairy-root/Flux-Prompt-Generator.git /comfyui/custom_nodes/Flux-Prompt-Generator
+RUN git clone https://github.com/crystian/ComfyUI-Crystools.git /comfyui/custom_nodes/ComfyUI-Crystools
+
+
 # Start the container
 CMD /start.sh
