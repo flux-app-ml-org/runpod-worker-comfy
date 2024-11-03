@@ -23,7 +23,7 @@
             },
             "10": {
                 "inputs": {
-                    "vae_name": "ae.sft"
+                    "vae_name": "ae.safetensors"
                 },
                 "class_type": "VAELoader",
                 "_meta": {
@@ -43,7 +43,7 @@
             },
             "12": {
                 "inputs": {
-                    "unet_name": "flux1-dev.sft",
+                    "unet_name": "flux1-dev.safetensors",
                     "weight_dtype": "default"
                 },
                 "class_type": "UNETLoader",
@@ -207,10 +207,7 @@
                     "prefix": "",
                     "any_value": ["57", 0]
                 },
-                "class_type": "Show any [Crystools]",
-                "_meta": {
-                    "title": "🪛 Show any value to console/display"
-                }
+                "class_type": "Show any [Crystools]"
             },
             "62": {
                 "inputs": {
@@ -220,10 +217,7 @@
                     "start_index": 0,
                     "max_rows": 10
                 },
-                "class_type": "CR Prompt List",
-                "_meta": {
-                    "title": "📜 CR Prompt List"
-                }
+                "class_type": "CR Prompt List"
             }
         }
     }
