@@ -234,7 +234,8 @@ def process_output_images(outputs, job_id):
 
     output_images = {}
 
-    print(outputs.items())
+    print("outputs:", outputs)
+    print("outputs.items:", outputs.items())
 
     for node_id, node_output in outputs.items():
         if "images" in node_output:
