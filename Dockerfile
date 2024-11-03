@@ -76,8 +76,6 @@ FROM base as final
 COPY --from=downloader /comfyui/models /comfyui/models
 
 RUN git clone https://github.com/fairy-root/Flux-Prompt-Generator.git /comfyui/custom_nodes/Flux-Prompt-Generator
-WORKDIR /comfyui/custom_nodes/Flux-Prompt-Generator
-RUN pip3 install -r requirements.txt
 
 RUN git clone https://github.com/crystian/ComfyUI-Crystools.git /comfyui/custom_nodes/ComfyUI-Crystools
 WORKDIR /comfyui/custom_nodes/ComfyUI-Crystools
