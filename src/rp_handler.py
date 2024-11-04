@@ -248,37 +248,43 @@ def process_output_images(outputs, job_id):
     print(f"runpod-worker-comfy - image generation is done")
 
     results = []
+    local_image_paths = []
 
     for image_path in output_images:
         local_image_path = f"{COMFY_OUTPUT_PATH}/{image_path}"
         print(f"runpod-worker-comfy - {local_image_path}")
 
-        # The image is in the output folder
         if os.path.exists(local_image_path):
-            if os.environ.get("BUCKET_ENDPOINT_URL", False):
-                # URL to image in AWS S3
-                # TODO (perf): upload all images at once
-                image = rp_upload.upload_image(job_id, local_image_path)
-                print(
-                    "runpod-worker-comfy - the image was generated and uploaded to AWS S3"
-                )
-            else:
-                # base64 image
-                image = base64_encode(local_image_path)
-                print(
-                    "runpod-worker-comfy - the image was generated and converted to base64"
-                )
-
-            results.append({
-                "status": "success",
-                "message": image,
-            })
+            local_image_paths.append(local_image_path)
         else:
             print("runpod-worker-comfy - the image does not exist in the output folder")
             results.append({
                 "status": "error",
                 "message": f"the image does not exist in the specified output folder: {local_image_path}",
             })
+
+    if os.environ.get("BUCKET_ENDPOINT_URL", False):
+        # Upload all images at once
+        image_urls = rp_upload.files(job_id, local_image_paths)
+
+        for image_url in image_urls:
+            results.append({
+                "status": "success",
+                "message": image_url,
+            })
+
+        print("runpod-worker-comfy - images were uploaded to AWS S3")
+
+        return results
+
+    for local_image_path in local_image_paths:
+        # Base64 encode each image
+        image = base64_encode(local_image_path)
+        results.append({
+            "status": "success",
+            "message": image,
+        })
+        print("runpod-worker-comfy - the image was generated and converted to base64")
 
     return results
 
