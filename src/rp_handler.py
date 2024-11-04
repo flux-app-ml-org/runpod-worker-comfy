@@ -257,6 +257,7 @@ def process_output_images(outputs, job_id):
         if os.path.exists(local_image_path):
             if os.environ.get("BUCKET_ENDPOINT_URL", False):
                 # URL to image in AWS S3
+                # TODO (perf): upload all images at once
                 image = rp_upload.upload_image(job_id, local_image_path)
                 print(
                     "runpod-worker-comfy - the image was generated and uploaded to AWS S3"
@@ -349,7 +350,7 @@ def handler(job):
     # Get the generated image and return it as URL in an AWS bucket or as base64
     images_result = process_output_images(history[prompt_id].get("outputs"), job["id"])
 
-    result = {**images_result, "refresh_worker": REFRESH_WORKER}
+    result = {"result":images_result, "refresh_worker": REFRESH_WORKER}
 
     return result
 
