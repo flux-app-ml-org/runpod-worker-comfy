@@ -200,6 +200,8 @@ def base64_encode(img_path):
         return f"{encoded_string}"
 
 
+import os
+
 def process_output_images(outputs, job_id):
     """
     This function takes the "outputs" from image generation and the job ID,
@@ -232,7 +234,7 @@ def process_output_images(outputs, job_id):
     # The path where ComfyUI stores the generated images
     COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
 
-    output_images = {}
+    output_images = []
 
     print("outputs:", outputs)
     print("outputs.items:", outputs.items())
@@ -240,40 +242,44 @@ def process_output_images(outputs, job_id):
     for node_id, node_output in outputs.items():
         if "images" in node_output:
             for image in node_output["images"]:
-                output_images = os.path.join(image["subfolder"], image["filename"])
+                image_path = os.path.join(image["subfolder"], image["filename"])
+                output_images.append(image_path)
 
     print(f"runpod-worker-comfy - image generation is done")
 
-    # expected image output folder
-    local_image_path = f"{COMFY_OUTPUT_PATH}/{output_images}"
+    results = []
 
-    print(f"runpod-worker-comfy - {local_image_path}")
+    for image_path in output_images:
+        local_image_path = f"{COMFY_OUTPUT_PATH}/{image_path}"
+        print(f"runpod-worker-comfy - {local_image_path}")
 
-    # The image is in the output folder
-    if os.path.exists(local_image_path):
-        if os.environ.get("BUCKET_ENDPOINT_URL", False):
-            # URL to image in AWS S3
-            image = rp_upload.upload_image(job_id, local_image_path)
-            print(
-                "runpod-worker-comfy - the image was generated and uploaded to AWS S3"
-            )
+        # The image is in the output folder
+        if os.path.exists(local_image_path):
+            if os.environ.get("BUCKET_ENDPOINT_URL", False):
+                # URL to image in AWS S3
+                image = rp_upload.upload_image(job_id, local_image_path)
+                print(
+                    "runpod-worker-comfy - the image was generated and uploaded to AWS S3"
+                )
+            else:
+                # base64 image
+                image = base64_encode(local_image_path)
+                print(
+                    "runpod-worker-comfy - the image was generated and converted to base64"
+                )
+
+            results.append({
+                "status": "success",
+                "message": image,
+            })
         else:
-            # base64 image
-            image = base64_encode(local_image_path)
-            print(
-                "runpod-worker-comfy - the image was generated and converted to base64"
-            )
+            print("runpod-worker-comfy - the image does not exist in the output folder")
+            results.append({
+                "status": "error",
+                "message": f"the image does not exist in the specified output folder: {local_image_path}",
+            })
 
-        return {
-            "status": "success",
-            "message": image,
-        }
-    else:
-        print("runpod-worker-comfy - the image does not exist in the output folder")
-        return {
-            "status": "error",
-            "message": f"the image does not exist in the specified output folder: {local_image_path}",
-        }
+    return results
 
 
 def handler(job):
