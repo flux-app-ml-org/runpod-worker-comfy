@@ -7,5 +7,3 @@ simulated_uploaded
 __pycache__
 *.pem
 *.safetensors
-
-id_ed*
