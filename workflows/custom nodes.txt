@@ -1,0 +1,2 @@
+https://github.com/TTPlanetPig/Comfyui_JC2
+https://github.com/tsogzark/ComfyUI-load-image-from-url

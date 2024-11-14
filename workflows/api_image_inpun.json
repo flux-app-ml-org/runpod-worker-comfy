@@ -1,0 +1,218 @@
+{
+  "6": {
+    "inputs": {
+      "text": [
+        "90",
+        0
+      ],
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "13",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader"
+  },
+  "12": {
+    "inputs": {
+      "unet_name": "flux1-dev-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "13": {
+    "inputs": {
+      "noise": [
+        "25",
+        0
+      ],
+      "guider": [
+        "22",
+        0
+      ],
+      "sampler": [
+        "16",
+        0
+      ],
+      "sigmas": [
+        "17",
+        0
+      ],
+      "latent_image": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced"
+  },
+  "16": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect"
+  },
+  "17": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1,
+      "model": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler"
+  },
+  "22": {
+    "inputs": {
+      "model": [
+        "30",
+        0
+      ],
+      "conditioning": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "BasicGuider"
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 1116316018156879
+    },
+    "class_type": "RandomNoise"
+  },
+  "26": {
+    "inputs": {
+      "guidance": 3.5,
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance"
+  },
+  "27": {
+    "inputs": {
+      "width": 1152,
+      "height": 1408,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
+  },
+  "30": {
+    "inputs": {
+      "max_shift": 1.15,
+      "base_shift": 0.5,
+      "width": 1152,
+      "height": 1408,
+      "model": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingFlux"
+  },
+  "42": {
+    "inputs": {
+      "lora_name": "katyav2ostris.safetensors",
+      "strength_model": 1,
+      "model": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly"
+  },
+  "44": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage"
+  },
+  "79": {
+    "inputs": {
+      "lora_name": "VideoAditor_flux_realism_lora.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly"
+  },
+  "88": {
+    "inputs": {
+      "url_or_path": "https://twingain.ru/mashatest/AnnaXD.jpg"
+    },
+    "class_type": "LoadImageFromUrlOrPath"
+  },
+  "90": {
+    "inputs": {
+      "llm_model": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "dtype": "nf4",
+      "caption_type": "Descriptive",
+      "caption_length": "any",
+      "user_prompt": "",
+      "max_new_tokens": 300,
+      "top_p": 0.8,
+      "temperature": 0.6,
+      "cache_model": false,
+      "device": "cuda:0",
+      "enable_extra_options": true,
+      "replace_character_names": false,
+      "exclude_unchangeable_attributes": true,
+      "include_lighting_details": false,
+      "include_camera_angle": false,
+      "mention_watermark_presence": false,
+      "note_jpeg_artifacts": false,
+      "include_exif_data": false,
+      "exclude_sexual_content": false,
+      "exclude_image_resolution": false,
+      "describe_aesthetic_quality": false,
+      "include_composition_style": false,
+      "exclude_text_elements": false,
+      "specify_depth_of_field": false,
+      "specify_lighting_sources": false,
+      "avoid_ambiguous_language": false,
+      "classify_image_as_sfw_nsfw": false,
+      "describe_key_elements_only": false,
+      "character_name": "",
+      "image": [
+        "88",
+        0
+      ]
+    },
+    "class_type": "JoyCaption2"
+  }
+}
