@@ -291,10 +291,10 @@ def process_output_images(outputs, job_id):
 
 def handler(job):
     """
-    The main function that handles a job of generating an image.
+    The main function that handles a job of generating images.
 
-    This function validates the input, sends a prompt to ComfyUI for processing,
-    polls ComfyUI for result, and retrieves generated images.
+    This function validates each workflow input, sends prompts to ComfyUI for processing,
+    polls ComfyUI for results, and retrieves generated images.
 
     Args:
         job (dict): A dictionary containing job details and input parameters.
@@ -303,15 +303,20 @@ def handler(job):
         dict: A dictionary containing either an error message or a success status with generated images.
     """
     job_input = job["input"]
+    workflows = job_input.get("workflow", [])
 
-    # Make sure that the input is valid
-    validated_data, error_message = validate_input(job_input)
-    if error_message:
-        return {"error": error_message}
+    if not workflows:
+        return {"error": "No workflows provided"}
 
-    # Extract validated data
-    workflow = validated_data["workflow"]
-    images = validated_data.get("images")
+    validated_workflows = []
+    for workflow in workflows:
+        print(f"runpod-worker-comfy - validating workflow")
+        validated_data, error_message = validate_input({"workflow": workflow})
+
+        if error_message:
+            return {"error": error_message}
+
+        validated_workflows.append(validated_data)
 
     # Make sure that the ComfyUI API is available
     check_server(
@@ -321,42 +326,60 @@ def handler(job):
     )
 
     # Upload images if they exist
+    images = job_input.get("images")
     upload_result = upload_images(images)
-
     if upload_result["status"] == "error":
         return upload_result
 
-    # Queue the workflow
-    try:
-        queued_workflow = queue_workflow(workflow)
-        prompt_id = queued_workflow["prompt_id"]
-        print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
-    except Exception as e:
-        return {"error": f"Error queuing workflow: {str(e)}"}
+    prompt_ids = []
 
-    # Poll for completion
-    print(f"runpod-worker-comfy - wait until image generation is complete")
+    # Validate and queue each workflow
+    try:
+        for validated_data in validated_workflows:
+
+            queued_workflow = queue_workflow(validated_data["workflow"])
+            prompt_id = queued_workflow["prompt_id"]
+            prompt_ids.append(prompt_id)
+            print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
+    except Exception as e:
+        return {"error": f"Error queuing workflows: {str(e)}"}
+
+    # Poll for completion of all workflows
+    print(f"runpod-worker-comfy - wait until image generation is complete for all workflows")
     retries = 0
+    completed_images = {}
+
     try:
         while retries < COMFY_POLLING_MAX_RETRIES:
-            history = get_history(prompt_id)
+            all_completed = True
+            for prompt_id in prompt_ids:
+                history = get_history(prompt_id)
 
-            # Exit the loop if we have found the history
-            if prompt_id in history and history[prompt_id].get("outputs"):
+                if prompt_id in history and history[prompt_id].get("outputs"):
+                    completed_images[prompt_id] = history[prompt_id].get("outputs")
+                else:
+                    all_completed = False
+
+            if all_completed:
                 break
             else:
                 # Wait before trying again
                 time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
                 retries += 1
-        else:
+
+        if not all_completed:
             return {"error": "Max retries reached while waiting for image generation"}
+
     except Exception as e:
         return {"error": f"Error waiting for image generation: {str(e)}"}
 
-    # Get the generated image and return it as URL in an AWS bucket or as base64
-    images_result = process_output_images(history[prompt_id].get("outputs"), job["id"])
+    # Process and return all generated images
+    images_results = []
+    for prompt_id, outputs in completed_images.items():
+        images_result = process_output_images(outputs, job["id"])
+        images_results.append(images_result)
 
-    result = {"result":images_result, "refresh_worker": REFRESH_WORKER}
+    result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
 
     return result
 
