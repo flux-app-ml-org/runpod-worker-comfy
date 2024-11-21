@@ -2,7 +2,7 @@
   "6": {
     "inputs": {
       "text": [
-        "90",
+        "95",
         0
       ],
       "clip": [
@@ -41,7 +41,7 @@
   },
   "12": {
     "inputs": {
-      "unet_name": "flux1-dev-fp8.safetensors",
+      "unet_name": "flux1-dev.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader"
@@ -80,7 +80,7 @@
   "17": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 20,
+      "steps": 30,
       "denoise": 1,
       "model": [
         "30",
@@ -104,7 +104,7 @@
   },
   "25": {
     "inputs": {
-      "noise_seed": 1116316018156879
+      "noise_seed": 42
     },
     "class_type": "RandomNoise"
   },
@@ -112,7 +112,7 @@
     "inputs": {
       "guidance": 3.5,
       "conditioning": [
-        "6",
+        "83",
         0
       ]
     },
@@ -133,7 +133,7 @@
       "width": 1152,
       "height": 1408,
       "model": [
-        "79",
+        "62",
         0
       ]
     },
@@ -160,10 +160,10 @@
     },
     "class_type": "SaveImage"
   },
-  "79": {
+  "62": {
     "inputs": {
       "lora_name": "VideoAditor_flux_realism_lora.safetensors",
-      "strength_model": 0.8,
+      "strength_model": 0.77,
       "model": [
         "42",
         0
@@ -171,48 +171,98 @@
     },
     "class_type": "LoraLoaderModelOnly"
   },
-  "88": {
+  "82": {
     "inputs": {
-      "url_or_path": "https://twingain.ru/mashatest/AnnaXD.jpg"
+      "control_net_name": "flux-depth-controlnet-v3.safetensors"
     },
-    "class_type": "LoadImageFromUrlOrPath"
+    "class_type": "ControlNetLoader"
   },
-  "90": {
+  "83": {
+    "inputs": {
+      "strength": 0.6,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "87",
+        0
+      ],
+      "control_net": [
+        "82",
+        0
+      ],
+      "image": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced"
+  },
+  "87": {
+    "inputs": {
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut"
+  },
+  "95": {
     "inputs": {
       "llm_model": "unsloth/Meta-Llama-3.1-8B-Instruct",
       "dtype": "nf4",
       "caption_type": "Descriptive",
       "caption_length": "any",
       "user_prompt": "",
-      "max_new_tokens": 300,
+      "max_new_tokens": 260,
       "top_p": 0.8,
       "temperature": 0.6,
       "cache_model": false,
       "device": "cuda:0",
-      "enable_extra_options": true,
-      "replace_character_names": false,
-      "exclude_unchangeable_attributes": true,
-      "include_lighting_details": false,
-      "include_camera_angle": false,
-      "mention_watermark_presence": false,
-      "note_jpeg_artifacts": false,
-      "include_exif_data": false,
-      "exclude_sexual_content": false,
-      "exclude_image_resolution": false,
-      "describe_aesthetic_quality": false,
-      "include_composition_style": false,
-      "exclude_text_elements": false,
-      "specify_depth_of_field": false,
-      "specify_lighting_sources": false,
-      "avoid_ambiguous_language": false,
-      "classify_image_as_sfw_nsfw": false,
-      "describe_key_elements_only": false,
-      "character_name": "",
       "image": [
-        "88",
+        "112",
         0
       ]
     },
-    "class_type": "JoyCaption2"
+    "class_type": "JoyCaption2_simple"
+  },
+  "102": {
+    "inputs": {
+      "da_model": [
+        "104",
+        0
+      ],
+      "images": [
+        "112",
+        0
+      ]
+    },
+    "class_type": "DepthAnything_V2"
+  },
+  "104": {
+    "inputs": {
+      "model": "depth_anything_v2_vitl_fp32.safetensors"
+    },
+    "class_type": "DownloadAndLoadDepthAnythingV2Model"
+  },
+  "107": {
+    "inputs": {
+      "url_or_path": "https://twingain.ru/mashatest/AnnaXD.jpg"
+    },
+    "class_type": "LoadImageFromUrlOrPath"
+  },
+  "112": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 1,
+      "image": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels"
   }
 }

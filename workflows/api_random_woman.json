@@ -80,7 +80,7 @@
   "17": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 20,
+      "steps": 30,
       "denoise": 1,
       "model": [
         "30",
