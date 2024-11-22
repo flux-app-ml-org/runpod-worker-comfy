@@ -1,5 +1,40 @@
 # WORKFLOWS
 
+## api_image_input3.json
+
+### user lora model
+  "40": {
+    "inputs": {
+      "lora_name": "katyav2ostris.safetensors",
+
+### input image
+  "156": {
+    "inputs": {
+      "url_or_path": "https://twingain.ru/mashatest/AnnaXD.jpg"
+
+### noise_seed
+  "25": {
+    "inputs": {
+      "noise_seed": 475150560889661
+
+### noise_seed
+  "70": {
+    "inputs": {
+      "noise_seed": 475150560889661
+
+### noise_seed
+  "136": {
+    "inputs": {
+      "noise_seed": 475150560889661
+
+
+### Resolution
+  "72": {
+    "inputs": {
+      "width": 1152,
+      "height": 1408,
+
+
 ## api_image_input.json
 
 ### user lora model
@@ -29,7 +64,6 @@
     "inputs": {
       "lora_name": "VideoAditor_flux_realism_lora.safetensors",
       "strength_model": 0.77,
-
 
 
 ## api_random_man.json
