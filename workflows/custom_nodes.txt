@@ -14,3 +14,6 @@ https://github.com/fairy-root/Flux-Prompt-Generator.git
 https://github.com/crystian/ComfyUI-Crystools.git
 https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
 https://github.com/cubiq/ComfyUI_essentials
+
+# Takes up to 10s to load, and looks like we dont use it, disabled for now
+# https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
