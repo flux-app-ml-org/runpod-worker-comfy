@@ -1,0 +1,39 @@
+{
+    "delayTime": 5236,
+    "executionTime": 141438,
+    "id": "f194124e-9c3d-4530-873a-3d0f83abfee9-u1",
+    "output": {
+        "result": [
+            [
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/a60d0e42.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003742Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=749f6d7d9dee83c1f07038821cf751157d36180528905444ba9b98a20a1bc2ae",
+                    "status": "success"
+                },
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/c853d26d.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003742Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1e4a20469e4ba3886ed3828ca0759217a33d164088f2a755622676e5e9c67187",
+                    "status": "success"
+                },
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/cee014fe.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003742Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=6ee7d2185fb4b569969d50b3d6854ea1d9a2bb80344405ae5195ae69312fd7a4",
+                    "status": "success"
+                }
+            ],
+            [
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/b431a326.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003743Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=e4436b2029f8951fba9f8073990279316efaa27423436ad9be275619f5625c79",
+                    "status": "success"
+                },
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/7cfe31a6.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003744Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=dff0061bb446e141de1d7ef244d0dd9be1e440bd58fd4bc5ab0fafe3af89527f",
+                    "status": "success"
+                },
+                {
+                    "message": "https://directcut-flux-app.s3.us-east-1.amazonaws.com/11-24/f194124e-9c3d-4530-873a-3d0f83abfee9-u1/76eae81c.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQW74WZE3ZK6XG3WT%2F20241114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241114T003744Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=dec08313197b22d58d2b05a540f5053430d2ed736265d1e95aa8e09daf971827",
+                    "status": "success"
+                }
+            ]
+        ]
+    },
+    "status": "COMPLETED",
+    "workerId": "vx57ekrsn2oxvt"
+}
