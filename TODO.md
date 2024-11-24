@@ -10,3 +10,8 @@
 2024-11-24T01:14:26.032367246Z    0.0 seconds: /comfyui/custom_nodes/ComfyUI-Crystools
 2024-11-24T01:14:26.032415826Z    3.9 seconds: /comfyui/custom_nodes/ComfyUI_Comfyroll_CustomNodes
 ```
+
+2. Getting this weird error when trying to run payload without a `workflow` key, validate_input should catch this
+```
+2024-11-24T01:16:28.668706570Z {"requestId": null, "message": "Failed to get job. | Error Type: Exception | Error Message: Job has missing field(s): id or input.", "level": "ERROR"}
+```

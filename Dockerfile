@@ -29,7 +29,7 @@ RUN pip3 install --upgrade --no-cache-dir torch torchvision torchaudio --index-u
     && pip3 install --upgrade -r requirements.txt
 
 # Install runpod
-RUN pip3 install runpod requests
+RUN pip3 install runpod requests protobuf
 
 # Support for the network volume
 ADD src/extra_model_paths.yaml ./
