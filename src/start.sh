@@ -6,6 +6,8 @@ export LD_PRELOAD="${TCMALLOC}"
 
 # if [ ! -L /comfyui/models ]; then
 ln -s /runpod-volume/models/Joy_caption /comfyui/models/Joy_caption
+ln -s /runpod-volume/models/LLM /comfyui/models/LLM
+ln -s /runpod-volume/models/clip_vision /comfyui/models/clip_vision
 # fi
 
 # Serve the API and don't shutdown the container
