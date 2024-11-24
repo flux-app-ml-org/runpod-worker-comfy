@@ -41,19 +41,15 @@ WORKDIR /
 ADD src/start.sh src/rp_handler.py test_input.json ./
 RUN chmod +x /start.sh
 
+# Add the script to clone custom nodes
+COPY workflows/custom_nodes.txt /workflows/custom_nodes.txt
+COPY clone_and_install.sh /clone_and_install.sh
+RUN chmod +x /clone_and_install.sh
+
 FROM base as final
 
-# Copy models from stage 2 to the final image
-
-RUN git clone https://github.com/fairy-root/Flux-Prompt-Generator.git /comfyui/custom_nodes/Flux-Prompt-Generator
-
-RUN git clone https://github.com/crystian/ComfyUI-Crystools.git /comfyui/custom_nodes/ComfyUI-Crystools
-WORKDIR /comfyui/custom_nodes/ComfyUI-Crystools
-RUN pip3 install -r requirements.txt
-
-RUN git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes /comfyui/custom_nodes/ComfyUI_Comfyroll_CustomNodes
-
-WORKDIR /
+# Execute the script to clone repositories and install dependencies
+RUN /clone_and_install.sh
 
 # Start the container
 CMD /start.sh
