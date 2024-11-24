@@ -13,3 +13,4 @@ https://github.com/tsogzark/ComfyUI-load-image-from-url
 https://github.com/fairy-root/Flux-Prompt-Generator.git
 https://github.com/crystian/ComfyUI-Crystools.git
 https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
+https://github.com/cubiq/ComfyUI_essentials
