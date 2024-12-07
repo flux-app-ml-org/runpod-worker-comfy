@@ -4,6 +4,13 @@
 TCMALLOC="$(ldconfig -p | grep -Po "libtcmalloc.so.\d" | head -n 1)"
 export LD_PRELOAD="${TCMALLOC}"
 
+# if [ ! -L /comfyui/models ]; then
+ln -s /runpod-volume/models/Joy_caption /comfyui/models/Joy_caption
+ln -s /runpod-volume/models/LLM /comfyui/models/LLM
+ln -s /runpod-volume/models/clip_vision /comfyui/models/clip_vision
+ln -s /runpod-volume/models/depthanything /comfyui/models/clip_vision
+# fi
+
 # Serve the API and don't shutdown the container
 if [ "$SERVE_API_LOCALLY" == "true" ]; then
     echo "runpod-worker-comfy: Starting ComfyUI"

@@ -1,5 +1,0 @@
-(check needs to install requirements for all nodes!!!)
-
-https://github.com/TTPlanetPig/Comfyui_JC2 (models already on share)
-https://github.com/tsogzark/ComfyUI-load-image-from-url
-https://github.com/kijai/ComfyUI-DepthAnythingV2 (models already on share)

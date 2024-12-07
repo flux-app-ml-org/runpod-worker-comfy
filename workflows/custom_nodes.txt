@@ -1,0 +1,18 @@
+# ComfyUI custom nodes repositories
+# Dockerfile will install these at build time
+# and run pip3 install if requirements.txt is present
+#
+# Check needs to install requirements for all nodes!!!
+
+# (models already on share)
+https://github.com/TTPlanetPig/Comfyui_JC2
+https://github.com/kijai/ComfyUI-DepthAnythingV2
+#
+
+https://github.com/tsogzark/ComfyUI-load-image-from-url
+https://github.com/fairy-root/Flux-Prompt-Generator.git
+https://github.com/crystian/ComfyUI-Crystools.git
+https://github.com/cubiq/ComfyUI_essentials
+
+# Takes up to 10s to load, and looks like we dont use it, disabled for now
+# https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
