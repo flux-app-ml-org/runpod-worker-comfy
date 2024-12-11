@@ -2,7 +2,7 @@
   "6": {
     "inputs": {
       "text": [
-        "63",
+        "74",
         0
       ],
       "clip": [
@@ -33,7 +33,7 @@
   },
   "11": {
     "inputs": {
-      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name1": "t5xxl_fp16.safetensors",
       "clip_name2": "clip_l.safetensors",
       "type": "flux"
     },
@@ -41,8 +41,8 @@
   },
   "12": {
     "inputs": {
-      "unet_name": "flux1-dev.safetensors",
-      "weight_dtype": "default"
+      "unet_name": "flux1-dev-fp8-e4m3fn.safetensors",
+      "weight_dtype": "fp8_e4m3fn_fast"
     },
     "class_type": "UNETLoader"
   },
@@ -80,7 +80,7 @@
   "17": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 30,
+      "steps": 25,
       "denoise": 1,
       "model": [
         "30",
@@ -104,7 +104,7 @@
   },
   "25": {
     "inputs": {
-      "noise_seed": 278847759604763
+      "noise_seed": 770021848654825
     },
     "class_type": "RandomNoise"
   },
@@ -120,18 +120,30 @@
   },
   "27": {
     "inputs": {
-      "width": 1152,
-      "height": 1408,
+      "width": [
+        "73",
+        0
+      ],
+      "height": [
+        "73",
+        1
+      ],
       "batch_size": 1
     },
     "class_type": "EmptySD3LatentImage"
   },
   "30": {
     "inputs": {
-      "max_shift": 1.15,
+      "max_shift": 1.1500000000000001,
       "base_shift": 0.5,
-      "width": 1152,
-      "height": 1408,
+      "width": [
+        "73",
+        0
+      ],
+      "height": [
+        "73",
+        1
+      ],
       "model": [
         "62",
         0
@@ -141,7 +153,7 @@
   },
   "42": {
     "inputs": {
-      "lora_name": "janev1ostris.safetensors",
+      "lora_name": "public\\timoti1.safetensors",
       "strength_model": 1,
       "model": [
         "12",
@@ -171,9 +183,18 @@
     },
     "class_type": "LoraLoaderModelOnly"
   },
-  "63": {
+  "73": {
     "inputs": {
-      "seed": 17374,
+      "megapixel": "1.0",
+      "aspect_ratio": "2:3 (Classic Portrait)",
+      "custom_ratio": false,
+      "custom_aspect_ratio": "1:1"
+    },
+    "class_type": "FluxResolutionNode"
+  },
+  "74": {
+    "inputs": {
+      "seed": 11052,
       "custom": "",
       "subject": "",
       "artform": "photography",
