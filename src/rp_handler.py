@@ -8,6 +8,7 @@ import os
 import requests
 import base64
 from io import BytesIO
+import logging_loki
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -23,6 +24,16 @@ COMFY_HOST = "127.0.0.1:8188"
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
 
+loki_url = os.environ.get("LOKI_URL")
+loki_username = os.environ.get("LOKI_USERNAME")
+loki_password = os.environ.get("LOKI_PASSWORD")
+
+handler = logging_loki.LokiHandler(
+    url="https://my-loki-instance/loki/api/v1/push", 
+    tags={"application": "inference-worker", "environment": "production"},
+    auth=("username", "password"),
+    version="1",
+)
 
 def validate_input(job_input):
     """
@@ -354,6 +365,7 @@ def handler(job):
             all_completed = True
             for prompt_id in prompt_ids:
                 history = get_history(prompt_id)
+                print({'message': 'Got history', 'history': history })
 
                 if prompt_id in history and history[prompt_id].get("outputs"):
                     completed_images[prompt_id] = history[prompt_id].get("outputs")
