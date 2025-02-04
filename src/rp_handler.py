@@ -1,3 +1,4 @@
+import uuid
 import runpod
 from runpod.serverless.utils import rp_upload
 import json
@@ -8,7 +9,8 @@ import os
 import requests
 import base64
 from io import BytesIO
-import logging_loki
+import logging
+from loki_logger_handler.loki_logger_handler import LokiLoggerHandler
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -23,17 +25,6 @@ COMFY_HOST = "127.0.0.1:8188"
 # Enforce a clean state after each job is done
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
-
-loki_url = os.environ.get("LOKI_URL")
-loki_username = os.environ.get("LOKI_USERNAME")
-loki_password = os.environ.get("LOKI_PASSWORD")
-
-handler = logging_loki.LokiHandler(
-    url="https://my-loki-instance/loki/api/v1/push", 
-    tags={"application": "inference-worker", "environment": "production"},
-    auth=("username", "password"),
-    version="1",
-)
 
 def validate_input(job_input):
     """
@@ -211,9 +202,7 @@ def base64_encode(img_path):
         return f"{encoded_string}"
 
 
-import os
-
-def process_output_images(outputs, job_id):
+def process_output_images(outputs, job_id, logger):
     """
     This function takes the "outputs" from image generation and the job ID,
     then determines the correct way to return the image, either as a direct URL
@@ -241,41 +230,45 @@ def process_output_images(outputs, job_id):
     - If the image file does not exist in the output folder, it returns an error status
       with a message indicating the missing image file.
     """
+    class FunctionNameAdapter(logging.LoggerAdapter):
+        def process(self, msg, kwargs):
+            return f'[{func_name}] {msg}', kwargs
 
-    # The path where ComfyUI stores the generated images
+    func_name = 'process_output_images'
+    logger = FunctionNameAdapter(logger, {})
+    
     COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
 
+    logger.info("started execution", extra={"outputs": outputs, "job_id": job_id, "output_path": COMFY_OUTPUT_PATH, "items": outputs.items()})
     output_images = []
-
-    print("outputs:", outputs)
-    print("outputs.items:", outputs.items())
-
     for node_id, node_output in outputs.items():
         if "images" in node_output:
             for image in node_output["images"]:
                 image_path = os.path.join(image["subfolder"], image["filename"])
                 output_images.append(image_path)
 
-    print(f"runpod-worker-comfy - image generation is done")
+    logger.info("image generation is done", {"output_images": output_images})
 
     results = []
     local_image_paths = []
 
     for image_path in output_images:
         local_image_path = f"{COMFY_OUTPUT_PATH}/{image_path}"
-        print(f"runpod-worker-comfy - {local_image_path}")
+        logger.info("got image path", extra={'local_image_path': local_image_path})
 
         if os.path.exists(local_image_path):
             local_image_paths.append(local_image_path)
         else:
-            print("runpod-worker-comfy - the image does not exist in the output folder")
+            logger.error("the image does not exist in the output folder", extra={'image_path': image_path, "local_image_path": local_image_path})
             results.append({
                 "status": "error",
                 "message": f"the image does not exist in the specified output folder: {local_image_path}",
             })
 
+    logger.info("collected all image paths", extra={'output_images': output_images})
     if os.environ.get("BUCKET_ENDPOINT_URL", False):
         # Upload all images at once
+        logger.info("Uploading images to an s3 bucket")
         image_urls = rp_upload.files(job_id, local_image_paths)
 
         for image_url in image_urls:
@@ -284,8 +277,7 @@ def process_output_images(outputs, job_id):
                 "message": image_url,
             })
 
-        print("runpod-worker-comfy - images were uploaded to AWS S3")
-
+        logger.info("Uploaded images to S3", extra={"image_urls": image_urls, "results": results})
         return results
 
     for local_image_path in local_image_paths:
@@ -295,8 +287,9 @@ def process_output_images(outputs, job_id):
             "status": "success",
             "message": image,
         })
-        print("runpod-worker-comfy - the image was generated and converted to base64")
+        print("runpod-worker-comfy - ")
 
+    logger.info("the image was generated and converted to base64", extra={"results": results, "local_image_paths": local_image_paths})
     return results
 
 
@@ -313,19 +306,56 @@ def handler(job):
     Returns:
         dict: A dictionary containing either an error message or a success status with generated images.
     """
+    LOKI_URL = os.environ.get("LOKI_URL", False)
+
+    if LOKI_URL:
+        # Generate a unique request ID at the start of each handler run
+        request_id = str(uuid.uuid4())
+        logger = logging.getLogger("custom_logger")
+        logger.setLevel(logging.DEBUG)
+
+        class RequestIdFilter(logging.Filter):
+            def filter(self, record):
+                record.request_id = request_id
+                return True
+
+        logger.addFilter(RequestIdFilter())
+
+        custom_handler = LokiLoggerHandler(
+            url=os.environ["LOKI_URL"],
+            labels={
+                "application": "Test", 
+                "environment": "production",
+                "request_id": request_id
+            },
+            label_keys={},
+            timeout=10,
+        )
+
+        logger.addHandler(custom_handler)
+        logger.debug("Debug message", extra={'custom_field': 'custom_value'})
+    else:
+        logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
+        logger = logging.getLogger("custom_logger")
+
+    logger.info("Got job", extra={'job': job})
     job_input = job["input"]
     workflows = job_input.get("workflow", [])
 
     if not workflows:
-        return {"error": "No workflows provided"}
+        ret = {"error": "No workflows provided"}
+        logger.info("No job to run, exiting", extra={'return_value': ret})
+        return ret
 
     validated_workflows = []
     for workflow in workflows:
-        print(f"runpod-worker-comfy - validating workflow")
+        logger.info("validating workflow", extra={'workflow': workflow})
         validated_data, error_message = validate_input({"workflow": workflow})
 
         if error_message:
-            return {"error": error_message}
+            ret = {"error": error_message}
+            logger.info("Got error validating input, returning", extra={'return_value': ret})
+            return ret
 
         validated_workflows.append(validated_data)
 
@@ -340,6 +370,7 @@ def handler(job):
     images = job_input.get("images")
     upload_result = upload_images(images)
     if upload_result["status"] == "error":
+        logger.error("Error uploading image", extra={"upload_result": upload_result})
         return upload_result
 
     prompt_ids = []
@@ -349,14 +380,16 @@ def handler(job):
         for validated_data in validated_workflows:
 
             queued_workflow = queue_workflow(validated_data["workflow"])
+            logger.info("Queuing workflow", extra={"queued_workflow": queued_workflow})
             prompt_id = queued_workflow["prompt_id"]
             prompt_ids.append(prompt_id)
             print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
     except Exception as e:
+        logger.error("Error queuing workflows", extra={"error": e})
         return {"error": f"Error queuing workflows: {str(e)}"}
 
     # Poll for completion of all workflows
-    print(f"runpod-worker-comfy - wait until image generation is complete for all workflows")
+    logger.info("Waiting for all workflows to complete", extra={'prompt_ids': prompt_ids})
     retries = 0
     completed_images = {}
 
@@ -365,8 +398,7 @@ def handler(job):
             all_completed = True
             for prompt_id in prompt_ids:
                 history = get_history(prompt_id)
-                print({'message': 'Got history', 'history': history })
-
+                logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
                 if prompt_id in history and history[prompt_id].get("outputs"):
                     completed_images[prompt_id] = history[prompt_id].get("outputs")
                 else:
@@ -380,19 +412,23 @@ def handler(job):
                 retries += 1
 
         if not all_completed:
-            return {"error": "Max retries reached while waiting for image generation"}
+            e = "Max retries reached while waiting for image generation"
+            logger.error(e, extra={"retries": retries, })
+            return {"error": e}
 
     except Exception as e:
-        return {"error": f"Error waiting for image generation: {str(e)}"}
+        msg = "Error waiting for image generation"
+        logger.error(msg, extra={"error": e})
+        return {"error": f"{msg}: {str(e)}"}
 
     # Process and return all generated images
     images_results = []
     for prompt_id, outputs in completed_images.items():
-        images_result = process_output_images(outputs, job["id"])
+        images_result = process_output_images(outputs, job["id"], logger)
         images_results.append(images_result)
 
     result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
-
+    logger.info("Returning result", extra={"result": result})
     return result
 
 
