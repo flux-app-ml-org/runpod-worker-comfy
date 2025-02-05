@@ -306,131 +306,134 @@ def handler(job):
     Returns:
         dict: A dictionary containing either an error message or a success status with generated images.
     """
-    LOKI_URL = os.environ.get("LOKI_URL", False)
+    try:
+        LOKI_URL = os.environ.get("LOKI_URL", False)
 
-    if LOKI_URL:
-        # Generate a unique request ID at the start of each handler run
-        request_id = str(uuid.uuid4())
-        logger = logging.getLogger("custom_logger")
-        logger.setLevel(logging.DEBUG)
+        if LOKI_URL:
+            # Generate a unique request ID at the start of each handler run
+            request_id = str(uuid.uuid4())
+            logger = logging.getLogger("custom_logger")
+            logger.setLevel(logging.DEBUG)
 
-        class RequestIdFilter(logging.Filter):
-            def filter(self, record):
-                record.request_id = request_id
-                return True
+            class RequestIdFilter(logging.Filter):
+                def filter(self, record):
+                    record.request_id = request_id
+                    return True
 
-        logger.addFilter(RequestIdFilter())
+            logger.addFilter(RequestIdFilter())
 
-        custom_handler = LokiLoggerHandler(
-            url=os.environ["LOKI_URL"],
-            labels={
-                "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
-                "environment": "production",
-                "request_id": request_id
-            },
-            label_keys={},
-            timeout=10,
-        )
+            custom_handler = LokiLoggerHandler(
+                url=os.environ["LOKI_URL"],
+                labels={
+                    "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
+                    "environment": "production",
+                    "request_id": request_id
+                },
+                label_keys={},
+                timeout=10,
+            )
 
-        logger.addHandler(custom_handler)
-        logger.debug("Debug message", extra={'custom_field': 'custom_value'})
-    else:
-        logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
-        logger = logging.getLogger("custom_logger")
+            logger.addHandler(custom_handler)
+            logger.debug("Debug message", extra={'custom_field': 'custom_value'})
+        else:
+            logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
+            logger = logging.getLogger("custom_logger")
 
-    logger.info("Got job", extra={'job': job})
-    job_input = job["input"]
-    workflows = job_input.get("workflow", [])
+        logger.info("Got job", extra={'job': job})
+        job_input = job["input"]
+        workflows = job_input.get("workflow", [])
 
-    if not workflows:
-        ret = {"error": "No workflows provided"}
-        logger.info("No job to run, exiting", extra={'return_value': ret})
-        return ret
-
-    validated_workflows = []
-    for workflow in workflows:
-        logger.info("validating workflow", extra={'workflow': workflow})
-        validated_data, error_message = validate_input({"workflow": workflow})
-
-        if error_message:
-            ret = {"error": error_message}
-            logger.info("Got error validating input, returning", extra={'return_value': ret})
+        if not workflows:
+            ret = {"error": "No workflows provided"}
+            logger.info("No job to run, exiting", extra={'return_value': ret})
             return ret
 
-        validated_workflows.append(validated_data)
+        validated_workflows = []
+        for workflow in workflows:
+            logger.info("validating workflow", extra={'workflow': workflow})
+            validated_data, error_message = validate_input({"workflow": workflow})
 
-    # Make sure that the ComfyUI API is available
-    check_server(
-        f"http://{COMFY_HOST}",
-        COMFY_API_AVAILABLE_MAX_RETRIES,
-        COMFY_API_AVAILABLE_INTERVAL_MS,
-    )
+            if error_message:
+                ret = {"error": error_message}
+                logger.info("Got error validating input, returning", extra={'return_value': ret})
+                return ret
 
-    # Upload images if they exist
-    images = job_input.get("images")
-    upload_result = upload_images(images)
-    if upload_result["status"] == "error":
-        logger.error("Error uploading image", extra={"upload_result": upload_result})
-        return upload_result
+            validated_workflows.append(validated_data)
 
-    prompt_ids = []
+        # Make sure that the ComfyUI API is available
+        check_server(
+            f"http://{COMFY_HOST}",
+            COMFY_API_AVAILABLE_MAX_RETRIES,
+            COMFY_API_AVAILABLE_INTERVAL_MS,
+        )
 
-    # Validate and queue each workflow
-    try:
-        for validated_data in validated_workflows:
+        # Upload images if they exist
+        images = job_input.get("images")
+        upload_result = upload_images(images)
+        if upload_result["status"] == "error":
+            logger.error("Error uploading image", extra={"upload_result": upload_result})
+            return upload_result
 
-            queued_workflow = queue_workflow(validated_data["workflow"])
-            logger.info("Queuing workflow", extra={"queued_workflow": queued_workflow})
-            prompt_id = queued_workflow["prompt_id"]
-            prompt_ids.append(prompt_id)
-            print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
-    except Exception as e:
-        logger.error("Error queuing workflows", extra={"error": e})
-        return {"error": f"Error queuing workflows: {str(e)}"}
+        prompt_ids = []
 
-    # Poll for completion of all workflows
-    logger.info("Waiting for all workflows to complete", extra={'prompt_ids': prompt_ids})
-    retries = 0
-    completed_images = {}
+        # Validate and queue each workflow
+        try:
+            for validated_data in validated_workflows:
 
-    try:
-        while retries < COMFY_POLLING_MAX_RETRIES:
-            all_completed = True
-            for prompt_id in prompt_ids:
-                history = get_history(prompt_id)
-                logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
-                if prompt_id in history and history[prompt_id].get("outputs"):
-                    completed_images[prompt_id] = history[prompt_id].get("outputs")
+                queued_workflow = queue_workflow(validated_data["workflow"])
+                logger.info("Queuing workflow", extra={"queued_workflow": queued_workflow})
+                prompt_id = queued_workflow["prompt_id"]
+                prompt_ids.append(prompt_id)
+                print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
+        except Exception as e:
+            logger.error("Error queuing workflows", extra={"error": e})
+            return {"error": f"Error queuing workflows: {str(e)}"}
+
+        # Poll for completion of all workflows
+        logger.info("Waiting for all workflows to complete", extra={'prompt_ids': prompt_ids})
+        retries = 0
+        completed_images = {}
+
+        try:
+            while retries < COMFY_POLLING_MAX_RETRIES:
+                all_completed = True
+                for prompt_id in prompt_ids:
+                    history = get_history(prompt_id)
+                    logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
+                    if prompt_id in history and history[prompt_id].get("outputs"):
+                        completed_images[prompt_id] = history[prompt_id].get("outputs")
+                    else:
+                        all_completed = False
+
+                if all_completed:
+                    break
                 else:
-                    all_completed = False
+                    # Wait before trying again
+                    time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
+                    retries += 1
 
-            if all_completed:
-                break
-            else:
-                # Wait before trying again
-                time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
-                retries += 1
+            if not all_completed:
+                e = "Max retries reached while waiting for image generation"
+                logger.error(e, extra={"retries": retries, })
+                return {"error": e}
 
-        if not all_completed:
-            e = "Max retries reached while waiting for image generation"
-            logger.error(e, extra={"retries": retries, })
-            return {"error": e}
+        except Exception as e:
+            msg = "Error waiting for image generation"
+            logger.error(msg, extra={"error": e})
+            return {"error": f"{msg}: {str(e)}"}
 
-    except Exception as e:
-        msg = "Error waiting for image generation"
-        logger.error(msg, extra={"error": e})
-        return {"error": f"{msg}: {str(e)}"}
+        # Process and return all generated images
+        images_results = []
+        for prompt_id, outputs in completed_images.items():
+            images_result = process_output_images(outputs, job["id"], logger)
+            images_results.append(images_result)
 
-    # Process and return all generated images
-    images_results = []
-    for prompt_id, outputs in completed_images.items():
-        images_result = process_output_images(outputs, job["id"], logger)
-        images_results.append(images_result)
-
-    result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
-    logger.info("Returning result", extra={"result": result})
-    return result
-
+        result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
+        logger.info("Returning result", extra={"result": result})
+        return result
+    except e:
+        logger.error('Errored', extra={"error": e})
+        return {"error": e}
 
 # Start the handler only if this script is run directly
 if __name__ == "__main__":
