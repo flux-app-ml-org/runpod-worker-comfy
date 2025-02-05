@@ -336,8 +336,8 @@ def handler(job):
             logger.addHandler(custom_handler)
             logger.debug("Debug message", extra={'custom_field': 'custom_value'})
         else:
-            logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
             logger = logging.getLogger("custom_logger")
+            logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
 
         logger.info("Got job", extra={'job': job})
         job_input = job["input"]
@@ -431,7 +431,7 @@ def handler(job):
         result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
         logger.info("Returning result", extra={"result": result})
         return result
-    except e:
+    except Exception as e:
         logger.error('Errored', extra={"error": e})
         return {"error": e}
 
