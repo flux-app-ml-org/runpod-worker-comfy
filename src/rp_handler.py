@@ -206,7 +206,7 @@ def base64_encode(img_path):
         return f"{encoded_string}"
 
 
-def process_output_images(outputs, job_id, logger):
+def process_output_images(outputs, job_id, logger: logging.Logger):
     """
     This function takes the "outputs" from image generation and the job ID,
     then determines the correct way to return the image, either as a direct URL
@@ -304,23 +304,36 @@ def handler(job):
         dict: A dictionary containing either an error message or a success status with generated images.
     """
     try:
-        logger = logging.getLogger("custom_logger")
-        logger.setLevel(logging.DEBUG)
-
         LOKI_URL = os.environ.get("LOKI_URL", False)
+
         if LOKI_URL:
+            # Generate a unique request ID at the start of each handler run
+            request_id = str(uuid.uuid4())
+            logger = logging.getLogger("custom_logger")
+            logger.setLevel(logging.DEBUG)
+
+            class RequestIdFilter(logging.Filter):
+                def filter(self, record):
+                    record.request_id = request_id
+                    return True
+
+            logger.addFilter(RequestIdFilter())
+
             custom_handler = LokiLoggerHandler(
                 url=LOKI_URL,
                 labels={
                     "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
-                    "environment": "production"
+                    "environment": "production",
+                    "request_id": request_id
                 },
                 label_keys={},
                 timeout=10,
             )
 
             logger.addHandler(custom_handler)
+            logger.debug("Debug message", extra={'custom_field': 'custom_value'})
         else:
+            logger = logging.getLogger("custom_logger")
             logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
 
         logger.info("Got job", extra={'job': job})
@@ -382,7 +395,8 @@ def handler(job):
             while retries < COMFY_POLLING_MAX_RETRIES:
                 all_completed = True
                 for prompt_id in prompt_ids:
-                    history = get_history(prompt_id, logger)
+                    history = get_history(prompt_id)
+                    logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
                     if prompt_id in history and history[prompt_id].get("outputs"):
                         completed_images[prompt_id] = history[prompt_id].get("outputs")
                     else:
