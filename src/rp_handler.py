@@ -185,10 +185,10 @@ def get_history(prompt_id, logger: logging.Logger):
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
         res = response.read()
-        json = json.loads(res)
-        logger.debug("Got history response", extra={"prompt_id": prompt_id, "json": json, "res": res})
+        resJson = json.loads(res)
+        logger.debug("Got history response", extra={"prompt_id": prompt_id, "json": resJson, "res": res})
         
-        return json
+        return resJson
 
 
 def base64_encode(img_path):
@@ -304,18 +304,16 @@ def handler(job):
         dict: A dictionary containing either an error message or a success status with generated images.
     """
     try:
-        trace_id = str(uuid.uuid4())
         logger = logging.getLogger("custom_logger")
         logger.setLevel(logging.DEBUG)
 
         LOKI_URL = os.environ.get("LOKI_URL", False)
         if LOKI_URL:
             custom_handler = LokiLoggerHandler(
-                url=os.environ["LOKI_URL"],
+                url=LOKI_URL,
                 labels={
                     "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
-                    "environment": "production",
-                    "trace_id": trace_id
+                    "environment": "production"
                 },
                 label_keys={},
                 timeout=10,
