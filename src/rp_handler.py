@@ -173,7 +173,7 @@ def queue_workflow(workflow):
     return json.loads(urllib.request.urlopen(req).read())
 
 
-def get_history(prompt_id):
+def get_history(prompt_id, logger: logging.Logger):
     """
     Retrieve the history of a given prompt using its ID
 
@@ -184,7 +184,9 @@ def get_history(prompt_id):
         dict: The history of the prompt, containing all the processing steps and results
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
-        return json.loads(response.read())
+        res = response.read()
+        logger.debug("Got history", extra={"prompt_id": prompt_id, "history": res})
+        return json.loads(res)
 
 
 def base64_encode(img_path):
@@ -324,7 +326,7 @@ def handler(job):
         custom_handler = LokiLoggerHandler(
             url=os.environ["LOKI_URL"],
             labels={
-                "application": "Test", 
+                "application": "flux-app-runpod-worker-comfy", 
                 "environment": "production",
                 "request_id": request_id
             },
@@ -333,7 +335,6 @@ def handler(job):
         )
 
         logger.addHandler(custom_handler)
-        logger.debug("Debug message", extra={'custom_field': 'custom_value'})
     else:
         logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
         logger = logging.getLogger("custom_logger")
@@ -397,8 +398,7 @@ def handler(job):
         while retries < COMFY_POLLING_MAX_RETRIES:
             all_completed = True
             for prompt_id in prompt_ids:
-                history = get_history(prompt_id)
-                logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
+                history = get_history(prompt_id, logger)
                 if prompt_id in history and history[prompt_id].get("outputs"):
                     completed_images[prompt_id] = history[prompt_id].get("outputs")
                 else:
