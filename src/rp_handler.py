@@ -173,7 +173,7 @@ def queue_workflow(workflow):
     return json.loads(urllib.request.urlopen(req).read())
 
 
-def get_history(prompt_id):
+def get_history(prompt_id, logger: logging.Logger):
     """
     Retrieve the history of a given prompt using its ID
 
@@ -184,7 +184,11 @@ def get_history(prompt_id):
         dict: The history of the prompt, containing all the processing steps and results
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
-        return json.loads(response.read())
+        res = response.read()
+        json = json.loads(res)
+        logger.debug("Got history response", extra={"prompt_id": prompt_id, "json": json, "res": res})
+        
+        return json
 
 
 def base64_encode(img_path):
@@ -230,13 +234,6 @@ def process_output_images(outputs, job_id, logger):
     - If the image file does not exist in the output folder, it returns an error status
       with a message indicating the missing image file.
     """
-    class FunctionNameAdapter(logging.LoggerAdapter):
-        def process(self, msg, kwargs):
-            return f'[{func_name}] {msg}', kwargs
-
-    func_name = 'process_output_images'
-    logger = FunctionNameAdapter(logger, {})
-    
     COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
 
     logger.info("started execution", extra={"outputs": outputs, "job_id": job_id, "output_path": COMFY_OUTPUT_PATH, "items": outputs.items()})
@@ -307,36 +304,25 @@ def handler(job):
         dict: A dictionary containing either an error message or a success status with generated images.
     """
     try:
+        trace_id = str(uuid.uuid4())
+        logger = logging.getLogger("custom_logger")
+        logger.setLevel(logging.DEBUG)
+
         LOKI_URL = os.environ.get("LOKI_URL", False)
-
         if LOKI_URL:
-            # Generate a unique request ID at the start of each handler run
-            request_id = str(uuid.uuid4())
-            logger = logging.getLogger("custom_logger")
-            logger.setLevel(logging.DEBUG)
-
-            class RequestIdFilter(logging.Filter):
-                def filter(self, record):
-                    record.request_id = request_id
-                    return True
-
-            logger.addFilter(RequestIdFilter())
-
             custom_handler = LokiLoggerHandler(
                 url=os.environ["LOKI_URL"],
                 labels={
                     "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
                     "environment": "production",
-                    "request_id": request_id
+                    "trace_id": trace_id
                 },
                 label_keys={},
                 timeout=10,
             )
 
             logger.addHandler(custom_handler)
-            logger.debug("Debug message", extra={'custom_field': 'custom_value'})
         else:
-            logger = logging.getLogger("custom_logger")
             logger.warning("LOKI_URL not defined in env, wont send logs to grafana")
 
         logger.info("Got job", extra={'job': job})
@@ -398,8 +384,7 @@ def handler(job):
             while retries < COMFY_POLLING_MAX_RETRIES:
                 all_completed = True
                 for prompt_id in prompt_ids:
-                    history = get_history(prompt_id)
-                    logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
+                    history = get_history(prompt_id, logger)
                     if prompt_id in history and history[prompt_id].get("outputs"):
                         completed_images[prompt_id] = history[prompt_id].get("outputs")
                     else:
