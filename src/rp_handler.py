@@ -395,7 +395,7 @@ def handler(job):
             while retries < COMFY_POLLING_MAX_RETRIES:
                 all_completed = True
                 for prompt_id in prompt_ids:
-                    history = get_history(prompt_id)
+                    history = get_history(prompt_id, logger)
                     logger.info("Got history", extra={"prompt_id": prompt_id, "history": history})
                     if prompt_id in history and history[prompt_id].get("outputs"):
                         completed_images[prompt_id] = history[prompt_id].get("outputs")
