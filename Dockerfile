@@ -25,11 +25,11 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfyui
 WORKDIR /comfyui
 
 # Install ComfyUI dependencies
-RUN pip3 install --upgrade --no-cache-dir loki-logger-handler torch torchvision torchaudio xformers --index-url https://download.pytorch.org/whl/cu121 \
+RUN pip3 install --upgrade --no-cache-dir torch torchvision torchaudio xformers --index-url https://download.pytorch.org/whl/cu121 \
     && pip3 install --upgrade -r requirements.txt
 
 # Install runpod
-RUN pip3 install runpod requests protobuf
+RUN pip3 install runpod requests protobuf loki-logger-handler
 
 # Support for the network volume
 ADD src/extra_model_paths.yaml ./
