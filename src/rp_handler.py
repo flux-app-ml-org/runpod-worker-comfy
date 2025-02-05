@@ -324,7 +324,7 @@ def handler(job):
         custom_handler = LokiLoggerHandler(
             url=os.environ["LOKI_URL"],
             labels={
-                "application": "Test", 
+                "application": os.environ.get('LOKI_APP_NAME', 'runpod-worker-comfy'),
                 "environment": "production",
                 "request_id": request_id
             },

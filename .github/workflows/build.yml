@@ -3,7 +3,7 @@ name: Build on Push to Build Branch
 on:
   push:
     branches:
-      - build
+      - "*"
 
 jobs:
   build:
@@ -25,10 +25,10 @@ jobs:
       - name: Build and push Docker image
         run: |
           IMAGE_NAME=fajyz/runpod-worker-comfy
-          IMAGE_TAG=${{ github.sha }}
+          IMAGE_TAG=${{ github.head_ref || github.ref_name }}:${{ github.sha }}
           docker build -t $IMAGE_NAME:$IMAGE_TAG --platform linux/amd64 .
           docker push $IMAGE_NAME:$IMAGE_TAG
 
           # Optionally update the latest tag
-          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:latest
+          # docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+          # docker push $IMAGE_NAME:latest
