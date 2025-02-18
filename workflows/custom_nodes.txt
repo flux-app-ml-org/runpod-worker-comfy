@@ -5,12 +5,13 @@
 # Check needs to install requirements for all nodes!!!
 
 # (models already on share)
-https://github.com/kijai/ComfyUI-DepthAnythingV2.git
-#
-
-https://github.com/tsogzark/ComfyUI-load-image-from-url.git
-https://github.com/fairy-root/Flux-Prompt-Generator.git
-https://github.com/gseth/ControlAltAI-Nodes.git
-
-# Takes up to 10s to load, and looks like we dont use it, disabled for now
-# https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
+https://github.com/Fannovel16/comfyui_controlnet_aux
+https://github.com/pythongosssss/ComfyUI-Custom-Scripts
+https://github.com/kijai/ComfyUI-Florence2
+https://github.com/cubiq/ComfyUI_essentials
+https://github.com/Derfuu/Derfuu_ComfyUI_ModdedNodes
+https://github.com/kijai/ComfyUI-DepthAnythingV2
+https://github.com/audioscavenger/save-image-extended-comfyui
+https://github.com/KoreTeknology/ComfyUI-Universal-Styler
+https://github.com/shockz0rz/comfy-easy-grids
+https://github.com/un-seen/comfyui-tensorops

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - build
+      - ois-build
 
 jobs:
   build:
