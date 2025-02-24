@@ -8,6 +8,9 @@ import os
 import requests
 import base64
 from io import BytesIO
+import logging
+import sys
+from loki_logger_handler.loki_logger_handler import LokiLoggerHandler
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -24,6 +27,28 @@ COMFY_HOST = "127.0.0.1:8188"
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
 
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+LOKI_URL = os.getenv("LOKI_URL")
+
+if LOKI_URL:
+    logger.info("Configuring Loki logging.")
+    loki_handler = LokiLoggerHandler(
+        url=LOKI_URL,
+        labels={"app": "flux-app-inference-serverless-worker"}
+    )
+    logger.addHandler(loki_handler)
+else:
+    logger.warning("Loki credentials not provided, falling back to local logging.")
+    
+    local_handler = logging.StreamHandler(sys.stdout)
+    local_handler.setLevel(logging.DEBUG)
+    
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    local_handler.setFormatter(formatter)
+    
+    logger.addHandler(local_handler)
 def validate_input(job_input):
     """
     Validates the input for the handler function.
@@ -37,6 +62,7 @@ def validate_input(job_input):
     """
     # Validate if job_input is provided
     if job_input is None:
+        logger.error("Input validation failed", extra={"error": "Please provide input"})
         return None, "Please provide input"
 
     # Check if input is a string and try to parse it as JSON
@@ -44,11 +70,13 @@ def validate_input(job_input):
         try:
             job_input = json.loads(job_input)
         except json.JSONDecodeError:
+            logger.error("Input validation failed", extra={"error": "Invalid JSON format in input"})
             return None, "Invalid JSON format in input"
 
     # Validate 'workflow' in input
     workflow = job_input.get("workflow")
     if workflow is None:
+        logger.error("Input validation failed", extra={"error": "Missing 'workflow' parameter"})
         return None, "Missing 'workflow' parameter"
 
     # Validate 'images' in input, if provided
@@ -57,12 +85,14 @@ def validate_input(job_input):
         if not isinstance(images, list) or not all(
             "name" in image and "image" in image for image in images
         ):
+            logger.error("Input validation failed", extra={"error": "'images' must be a list of objects with 'name' and 'image' keys"})
             return (
                 None,
                 "'images' must be a list of objects with 'name' and 'image' keys",
             )
 
     # Return validated data and no error
+    logger.info("Input validation succeeded", extra={"validated_data": {"workflow": workflow, "images": images}})
     return {"workflow": workflow, "images": images}, None
 
 
@@ -85,18 +115,16 @@ def check_server(url, retries=500, delay=50):
 
             # If the response status code is 200, the server is up and running
             if response.status_code == 200:
-                print(f"runpod-worker-comfy - API is reachable")
+                logger.info("API is reachable", extra={"url": url})
                 return True
-        except requests.RequestException as e:
+        except requests.RequestException:
             # If an exception occurs, the server may not be ready
             pass
 
         # Wait for the specified delay before retrying
         time.sleep(delay / 1000)
 
-    print(
-        f"runpod-worker-comfy - Failed to connect to server at {url} after {retries} attempts."
-    )
+    logger.error("Failed to connect to server", extra={"url": url, "retries": retries})
     return False
 
 
@@ -106,18 +134,18 @@ def upload_images(images):
 
     Args:
         images (list): A list of dictionaries, each containing the 'name' of the image and the 'image' as a base64 encoded string.
-        server_address (str): The address of the ComfyUI server.
 
     Returns:
         list: A list of responses from the server for each image upload.
     """
     if not images:
+        logger.info("No images to upload", extra={})
         return {"status": "success", "message": "No images to upload", "details": []}
 
     responses = []
     upload_errors = []
 
-    print(f"runpod-worker-comfy - image(s) upload")
+    logger.info("Starting image(s) upload", extra={})
 
     for image in images:
         name = image["name"]
@@ -134,18 +162,20 @@ def upload_images(images):
         response = requests.post(f"http://{COMFY_HOST}/upload/image", files=files)
         if response.status_code != 200:
             upload_errors.append(f"Error uploading {name}: {response.text}")
+            logger.error("Error uploading image", extra={"name": name, "error": response.text})
         else:
             responses.append(f"Successfully uploaded {name}")
+            logger.info("Successfully uploaded image", extra={"name": name})
 
     if upload_errors:
-        print(f"runpod-worker-comfy - image(s) upload with errors")
+        logger.error("Image(s) upload completed with errors", extra={"upload_errors": upload_errors})
         return {
             "status": "error",
             "message": "Some images failed to upload",
             "details": upload_errors,
         }
 
-    print(f"runpod-worker-comfy - image(s) upload complete")
+    logger.info("Image(s) upload complete", extra={})
     return {
         "status": "success",
         "message": "All images uploaded successfully",
@@ -168,6 +198,7 @@ def queue_workflow(workflow):
     data = json.dumps({"prompt": workflow}).encode("utf-8")
 
     req = urllib.request.Request(f"http://{COMFY_HOST}/prompt", data=data)
+    logger.info("Queuing workflow", extra={"workflow": workflow})
     return json.loads(urllib.request.urlopen(req).read())
 
 
@@ -182,6 +213,7 @@ def get_history(prompt_id):
         dict: The history of the prompt, containing all the processing steps and results
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
+        logger.info("Retrieved history for prompt", extra={"prompt_id": prompt_id})
         return json.loads(response.read())
 
 
@@ -197,10 +229,9 @@ def base64_encode(img_path):
     """
     with open(img_path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+        logger.info("Encoded image to base64", extra={"img_path": img_path})
         return f"{encoded_string}"
 
-
-import os
 
 def process_output_images(outputs, job_id):
     """
@@ -236,8 +267,7 @@ def process_output_images(outputs, job_id):
 
     output_images = []
 
-    print("outputs:", outputs)
-    print("outputs.items:", outputs.items())
+    logger.info("Processing output images", extra={"outputs": outputs})
 
     for node_id, node_output in outputs.items():
         if "images" in node_output:
@@ -245,19 +275,19 @@ def process_output_images(outputs, job_id):
                 image_path = os.path.join(image["subfolder"], image["filename"])
                 output_images.append(image_path)
 
-    print(f"runpod-worker-comfy - image generation is done")
+    logger.info("Image generation is done", extra={})
 
     results = []
     local_image_paths = []
 
     for image_path in output_images:
         local_image_path = f"{COMFY_OUTPUT_PATH}/{image_path}"
-        print(f"runpod-worker-comfy - {local_image_path}")
+        logger.info("Checking local image path", extra={"local_image_path": local_image_path})
 
         if os.path.exists(local_image_path):
             local_image_paths.append(local_image_path)
         else:
-            print("runpod-worker-comfy - the image does not exist in the output folder")
+            logger.error("The image does not exist in the output folder", extra={"local_image_path": local_image_path})
             results.append({
                 "status": "error",
                 "message": f"the image does not exist in the specified output folder: {local_image_path}",
@@ -273,7 +303,7 @@ def process_output_images(outputs, job_id):
                 "message": image_url,
             })
 
-        print("runpod-worker-comfy - images were uploaded to AWS S3")
+        logger.info("Images were uploaded to AWS S3", extra={})
 
         return results
 
@@ -284,7 +314,7 @@ def process_output_images(outputs, job_id):
             "status": "success",
             "message": image,
         })
-        print("runpod-worker-comfy - the image was generated and converted to base64")
+        logger.info("The image was generated and converted to base64", extra={})
 
     return results
 
@@ -306,14 +336,16 @@ def handler(job):
     workflows = job_input.get("workflow", [])
 
     if not workflows:
+        logger.error("No workflows provided", extra={})
         return {"error": "No workflows provided"}
 
     validated_workflows = []
     for workflow in workflows:
-        print(f"runpod-worker-comfy - validating workflow")
+        logger.info("Validating workflow", extra={})
         validated_data, error_message = validate_input({"workflow": workflow})
 
         if error_message:
+            logger.error("Workflow validation failed", extra={"error": error_message})
             return {"error": error_message}
 
         validated_workflows.append(validated_data)
@@ -329,6 +361,7 @@ def handler(job):
     images = job_input.get("images")
     upload_result = upload_images(images)
     if upload_result["status"] == "error":
+        logger.error("Image upload failed", extra={"upload_result": upload_result})
         return upload_result
 
     prompt_ids = []
@@ -336,16 +369,16 @@ def handler(job):
     # Validate and queue each workflow
     try:
         for validated_data in validated_workflows:
-
             queued_workflow = queue_workflow(validated_data["workflow"])
             prompt_id = queued_workflow["prompt_id"]
             prompt_ids.append(prompt_id)
-            print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
+            logger.info("Queued workflow", extra={"prompt_id": prompt_id})
     except Exception as e:
+        logger.error("Error queuing workflows", extra={"error": str(e)})
         return {"error": f"Error queuing workflows: {str(e)}"}
 
     # Poll for completion of all workflows
-    print(f"runpod-worker-comfy - wait until image generation is complete for all workflows")
+    logger.info("Waiting until image generation is complete for all workflows", extra={})
     retries = 0
     completed_images = {}
 
@@ -368,9 +401,11 @@ def handler(job):
                 retries += 1
 
         if not all_completed:
+            logger.error("Max retries reached while waiting for image generation", extra={})
             return {"error": "Max retries reached while waiting for image generation"}
 
     except Exception as e:
+        logger.error("Error waiting for image generation", extra={"error": str(e)})
         return {"error": f"Error waiting for image generation: {str(e)}"}
 
     # Process and return all generated images
@@ -380,6 +415,7 @@ def handler(job):
         images_results.append(images_result)
 
     result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
+    logger.info("Image generation completed successfully", extra={"result": result})
 
     return result
 
