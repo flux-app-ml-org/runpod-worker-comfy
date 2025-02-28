@@ -213,8 +213,9 @@ def get_history(prompt_id):
         dict: The history of the prompt, containing all the processing steps and results
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
-        logger.debug("Retrieved history for prompt", extra={"prompt_id": prompt_id})
-        return json.loads(response.read())
+        res_json = json.loads(response.read())
+        logger.debug("Retrieved history for prompt", extra={"prompt_id": prompt_id, "json": res_json})
+        return res_json
 
 
 def base64_encode(img_path):
