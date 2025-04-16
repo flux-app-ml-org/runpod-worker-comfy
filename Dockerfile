@@ -28,8 +28,9 @@ WORKDIR /comfyui
 RUN pip3 install --upgrade --no-cache-dir torch torchvision torchaudio xformers --index-url https://download.pytorch.org/whl/cu121 \
     && pip3 install --upgrade -r requirements.txt
 
-# Install runpod
-RUN pip3 install runpod requests protobuf loki_logger_handler==1.1.1
+# Install additional dependencies from requirements.txt in the project root
+COPY requirements.txt /requirements.txt
+RUN pip3 install --upgrade -r /requirements.txt
 
 # Support for the network volume
 ADD src/extra_model_paths.yaml ./
