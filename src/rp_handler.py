@@ -162,10 +162,10 @@ def upload_images(images):
         response = requests.post(f"http://{COMFY_HOST}/upload/image", files=files)
         if response.status_code != 200:
             upload_errors.append(f"Error uploading {name}: {response.text}")
-            logger.error("Error uploading image", extra={"name": name, "error": response.text})
+            logger.error("Error uploading image", extra={"image_name": name, "error": response.text})
         else:
             responses.append(f"Successfully uploaded {name}")
-            logger.info("Successfully uploaded image", extra={"name": name})
+            logger.info("Successfully uploaded image", extra={"image_name": name})
 
     if upload_errors:
         logger.error("Image(s) upload completed with errors", extra={"upload_errors": upload_errors})

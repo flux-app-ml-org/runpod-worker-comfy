@@ -123,13 +123,13 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         self.assertEqual(result, test_data)
 
     @patch("rp_handler.os.path.exists")
-    @patch("rp_handler.rp_upload.upload_image")
+    @patch("src.rp_handler.base64_encode")
     @patch.dict(
         os.environ, {"COMFY_OUTPUT_PATH": RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}
     )
-    def test_bucket_endpoint_not_configured(self, mock_upload_image, mock_exists):
+    def test_bucket_endpoint_not_configured(self, mock_base64_encode, mock_exists):
         mock_exists.return_value = True
-        mock_upload_image.return_value = "simulated_uploaded/image.png"
+        mock_base64_encode.return_value = "base64_encoded_image_data"
 
         outputs = {
             "node_id": {"images": [{"filename": "ComfyUI_00001_.png", "subfolder": ""}]}
@@ -139,9 +139,11 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         result = rp_handler.process_output_images(outputs, job_id)
 
         self.assertEqual(result["status"], "success")
+        self.assertEqual(result["message"], "base64_encoded_image_data")
+        mock_base64_encode.assert_called_once_with(f"{RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}/ComfyUI_00001_.png")
 
     @patch("rp_handler.os.path.exists")
-    @patch("rp_handler.rp_upload.upload_image")
+    @patch("rp_handler.rp_upload.files")
     @patch.dict(
         os.environ,
         {
@@ -149,12 +151,12 @@ class TestRunpodWorkerComfy(unittest.TestCase):
             "BUCKET_ENDPOINT_URL": "http://example.com",
         },
     )
-    def test_bucket_endpoint_configured(self, mock_upload_image, mock_exists):
+    def test_bucket_endpoint_configured(self, mock_files, mock_exists):
         # Mock the os.path.exists to return True, simulating that the image exists
         mock_exists.return_value = True
 
-        # Mock the rp_upload.upload_image to return a simulated URL
-        mock_upload_image.return_value = "http://example.com/uploaded/image.png"
+        # Mock the rp_upload.files to return a simulated URL list
+        mock_files.return_value = ["http://example.com/uploaded/image.png"]
 
         # Define the outputs and job_id for the test
         outputs = {"node_id": {"images": [{"filename": "ComfyUI_00001_.png", "subfolder": "test"}]}}
@@ -166,12 +168,12 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         # Assertions
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["message"], "http://example.com/uploaded/image.png")
-        mock_upload_image.assert_called_once_with(
-            job_id, "./test_resources/images/test/ComfyUI_00001_.png"
+        mock_files.assert_called_once_with(
+            job_id, ["./test_resources/images/test/ComfyUI_00001_.png"]
         )
 
     @patch("rp_handler.os.path.exists")
-    @patch("rp_handler.rp_upload.upload_image")
+    @patch("rp_handler.rp_upload.files")
     @patch.dict(
         os.environ,
         {
@@ -182,13 +184,13 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         },
     )
     def test_bucket_image_upload_fails_env_vars_wrong_or_missing(
-        self, mock_upload_image, mock_exists
+        self, mock_files, mock_exists
     ):
         # Simulate the file existing in the output path
         mock_exists.return_value = True
 
-        # When AWS credentials are wrong or missing, upload_image should return 'simulated_uploaded/...'
-        mock_upload_image.return_value = "simulated_uploaded/image.png"
+        # When AWS credentials are wrong or missing, return an empty list
+        mock_files.return_value = []
 
         outputs = {
             "node_id": {"images": [{"filename": "ComfyUI_00001_.png", "subfolder": ""}]}
@@ -197,9 +199,9 @@ class TestRunpodWorkerComfy(unittest.TestCase):
 
         result = rp_handler.process_output_images(outputs, job_id)
 
-        # Check if the image was saved to the 'simulated_uploaded' directory
-        self.assertIn("simulated_uploaded", result["message"])
-        self.assertEqual(result["status"], "success")
+        # Check that the proper error status is returned
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["message"], "Failed to upload images to AWS S3")
 
     @patch("rp_handler.requests.post")
     def test_upload_images_successful(self, mock_post):
@@ -212,10 +214,13 @@ class TestRunpodWorkerComfy(unittest.TestCase):
 
         images = [{"name": "test_image.png", "image": test_image_data}]
 
-        responses = rp_handler.upload_images(images)
+        response = rp_handler.upload_images(images)
 
-        self.assertEqual(len(responses), 3)
-        self.assertEqual(responses["status"], "success")
+        # Check that the response has the right structure and values
+        self.assertEqual(response["status"], "success")
+        self.assertEqual(response["message"], "All images uploaded successfully")
+        self.assertEqual(len(response["details"]), 1)
+        self.assertEqual(response["details"][0], "Successfully uploaded test_image.png")
 
     @patch("rp_handler.requests.post")
     def test_upload_images_failed(self, mock_post):
@@ -228,7 +233,10 @@ class TestRunpodWorkerComfy(unittest.TestCase):
 
         images = [{"name": "test_image.png", "image": test_image_data}]
 
-        responses = rp_handler.upload_images(images)
+        response = rp_handler.upload_images(images)
 
-        self.assertEqual(len(responses), 3)
-        self.assertEqual(responses["status"], "error")
+        # Check that the response has the right structure and values
+        self.assertEqual(response["status"], "error")
+        self.assertEqual(response["message"], "Some images failed to upload")
+        self.assertEqual(len(response["details"]), 1)
+        self.assertEqual(response["details"][0], "Error uploading test_image.png: Error uploading")
