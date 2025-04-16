@@ -8,9 +8,9 @@
 https://github.com/kijai/ComfyUI-DepthAnythingV2.git
 #
 
-https://github.com/tsogzark/ComfyUI-load-image-from-url.git
-https://github.com/fairy-root/Flux-Prompt-Generator.git 8b8c0da7401f1b52c45c9ea9b6c89c8212d7a487
-https://github.com/gseth/ControlAltAI-Nodes.git e0e1c2385383598472b593c94216e01549d2216f
+https://github.com/tsogzark/ComfyUI-load-image-from-url.git 66e4c91ffa13ea86be149c0f1a11ad6479bcf0cf
+https://github.com/fairy-root/Flux-Prompt-Generator.git d31942a508dc2ba33c7dfd858cc3e685b8b0c7df
+https://github.com/gseth/ControlAltAI-Nodes.git 0560cda0b232c76c95af43994464f691963ebef7
 
 # Takes up to 10s to load, and looks like we dont use it, disabled for now
 # https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
