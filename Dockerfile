@@ -46,7 +46,23 @@ COPY workflows/custom_nodes.txt /workflows/custom_nodes.txt
 COPY clone_and_install.sh /clone_and_install.sh
 RUN chmod +x /clone_and_install.sh
 
+# Stage 2: Downloader stage for downloading models
+FROM base as downloader
+
+# Install wget
+RUN apt-get update && apt-get install -y wget && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Download DepthAnything model
+RUN mkdir -p /models/depthanything && \
+    wget -O /models/depthanything/depth_anything_v2_vitl_fp32.safetensors \
+    https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vitl_fp32.safetensors/
+
+# Stage 3: Final stage
 FROM base as final
+
+# Copy the downloaded model from the downloader stage
+COPY --from=downloader /models/depthanything /comfyui/models/depthanything
 
 # Execute the script to clone repositories and install dependencies
 RUN /clone_and_install.sh
