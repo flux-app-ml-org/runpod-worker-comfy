@@ -138,8 +138,10 @@ class TestRunpodWorkerComfy(unittest.TestCase):
 
         result = rp_handler.process_output_images(outputs, job_id)
 
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["message"], "base64_encoded_image_data")
+        # Check the first item in the result list
+        self.assertTrue(isinstance(result, list))
+        self.assertEqual(result[0]["status"], "success")
+        self.assertEqual(result[0]["message"], "base64_encoded_image_data")
         mock_base64_encode.assert_called_once_with(f"{RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}/ComfyUI_00001_.png")
 
     @patch("rp_handler.os.path.exists")
@@ -166,8 +168,9 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         result = rp_handler.process_output_images(outputs, job_id)
 
         # Assertions
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["message"], "http://example.com/uploaded/image.png")
+        self.assertTrue(isinstance(result, list))
+        self.assertEqual(result[0]["status"], "success")
+        self.assertEqual(result[0]["message"], "http://example.com/uploaded/image.png")
         mock_files.assert_called_once_with(
             job_id, ["./test_resources/images/test/ComfyUI_00001_.png"]
         )
@@ -199,9 +202,8 @@ class TestRunpodWorkerComfy(unittest.TestCase):
 
         result = rp_handler.process_output_images(outputs, job_id)
 
-        # Check that the proper error status is returned
-        self.assertEqual(result["status"], "error")
-        self.assertEqual(result["message"], "Failed to upload images to AWS S3")
+        # Check that the result is an empty list when no images are uploaded
+        self.assertEqual(result, [])
 
     @patch("rp_handler.requests.post")
     def test_upload_images_successful(self, mock_post):
