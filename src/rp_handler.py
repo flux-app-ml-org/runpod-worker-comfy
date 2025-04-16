@@ -213,9 +213,7 @@ def get_history(prompt_id):
         dict: The history of the prompt, containing all the processing steps and results
     """
     with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
-        res_json = json.loads(response.read())
-        logger.debug("Retrieved history for prompt", extra={"prompt_id": prompt_id, "json": res_json})
-        return res_json
+        return json.loads(response.read())
 
 
 def base64_encode(img_path):
@@ -276,7 +274,7 @@ def process_output_images(outputs, job_id):
                 image_path = os.path.join(image["subfolder"], image["filename"])
                 output_images.append(image_path)
 
-    logger.info("Image generation is done", extra={})
+    logger.info("Image generation is done")
 
     results = []
     local_image_paths = []
@@ -289,35 +287,42 @@ def process_output_images(outputs, job_id):
             local_image_paths.append(local_image_path)
         else:
             logger.error("The image does not exist in the output folder", extra={"local_image_path": local_image_path})
-            results.append({
+            return {
                 "status": "error",
                 "message": f"the image does not exist in the specified output folder: {local_image_path}",
-            })
+            }
 
     if os.environ.get("BUCKET_ENDPOINT_URL", False):
         # Upload all images at once
         image_urls = rp_upload.files(job_id, local_image_paths)
-
-        for image_url in image_urls:
-            results.append({
+        
+        if image_urls and len(image_urls) > 0:
+            logger.info("Images were uploaded to AWS S3")
+            return {
                 "status": "success",
-                "message": image_url,
-            })
+                "message": image_urls[0] if len(image_urls) == 1 else image_urls,
+            }
+        else:
+            logger.error("Failed to upload images to AWS S3")
+            return {
+                "status": "error",
+                "message": "Failed to upload images to AWS S3",
+            }
 
-        logger.info("Images were uploaded to AWS S3", extra={})
-
-        return results
-
-    for local_image_path in local_image_paths:
-        # Base64 encode each image
-        image = base64_encode(local_image_path)
-        results.append({
+    if local_image_paths:
+        # Base64 encode first image
+        image = base64_encode(local_image_paths[0])
+        logger.info("The image was generated and converted to base64")
+        return {
             "status": "success",
             "message": image,
-        })
-        logger.info("The image was generated and converted to base64", extra={})
-
-    return results
+        }
+    
+    logger.error("No images were generated")
+    return {
+        "status": "error",
+        "message": "No images were generated",
+    }
 
 
 def handler(job):
@@ -389,6 +394,7 @@ def handler(job):
             for prompt_id in prompt_ids:
                 history = get_history(prompt_id)
 
+                # FIXME:if prompt_id not in history, mark as errored. exit if all are errored
                 if prompt_id in history and history[prompt_id].get("outputs"):
                     completed_images[prompt_id] = history[prompt_id].get("outputs")
                 else:
