@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: All Unit Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["discover"],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: test_rp_handler.py",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["tests.test_rp_handler"],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Current Test File",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["${file}"],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Test Class",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["${fileBasenameNoExtension}.${selectedText}"],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Test Method",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["${fileBasenameNoExtension}.TestRunpodWorkerComfy.${selectedText}"],
+            "justMyCode": false
+        }
+    ]
+} 

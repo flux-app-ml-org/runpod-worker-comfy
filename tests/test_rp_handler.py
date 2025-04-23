@@ -4,6 +4,8 @@ import sys
 import os
 import json
 import base64
+import hmac
+import hashlib
 
 # Make sure that "src" is known and can be used to import rp_handler.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
@@ -205,9 +207,9 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         # Check that the result is an empty list when no images are uploaded
         self.assertEqual(result, [])
 
-    @patch("rp_handler.requests.post")
+    @patch("src.rp_handler.requests.post")
     def test_upload_images_successful(self, mock_post):
-        mock_response = unittest.mock.Mock()
+        mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "Successfully uploaded"
         mock_post.return_value = mock_response
@@ -224,9 +226,9 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         self.assertEqual(len(response["details"]), 1)
         self.assertEqual(response["details"][0], "Successfully uploaded test_image.png")
 
-    @patch("rp_handler.requests.post")
+    @patch("src.rp_handler.requests.post")
     def test_upload_images_failed(self, mock_post):
-        mock_response = unittest.mock.Mock()
+        mock_response = Mock()
         mock_response.status_code = 400
         mock_response.text = "Error uploading"
         mock_post.return_value = mock_response
@@ -242,3 +244,185 @@ class TestRunpodWorkerComfy(unittest.TestCase):
         self.assertEqual(response["message"], "Some images failed to upload")
         self.assertEqual(len(response["details"]), 1)
         self.assertEqual(response["details"][0], "Error uploading test_image.png: Error uploading")
+
+    @patch("src.rp_handler.requests.post")
+    @patch("builtins.open", mock_open(read_data=b"test_image_data"))
+    @patch.dict(os.environ, {
+        "RESULT_IMAGE_WEBHOOK_URL": "http://webhook.example.com",
+        "RESULT_IMAGE_WEBHOOK_SECRET": "test_secret"
+    })
+    def test_send_image_to_webhook_success(self, mock_post):
+        # Mock successful webhook response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "Success"
+        mock_post.return_value = mock_response
+
+        # Test the webhook function with explicit parameters
+        result = rp_handler.send_image_to_webhook(
+            "test_image.png", 
+            "job123", 
+            "http://webhook.example.com", 
+            "test_secret"
+        )
+        
+        # Check the result is True
+        self.assertTrue(result)
+        
+        # Verify the mock was called with the correct arguments
+        mock_post.assert_called_once()
+        
+        # Check that the URL used is correct
+        self.assertEqual(mock_post.call_args[0][0], "http://webhook.example.com")
+        
+        # Check that the headers contain the X-Webhook-Signature
+        self.assertIn("X-Webhook-Signature", mock_post.call_args[1]["headers"])
+        
+        # Check that the signature is correct
+        expected_payload = {
+            "job_id": "job123",
+            "image_data": base64.b64encode(b"test_image_data").decode("utf-8"),
+            "image_name": "test_image.png"
+        }
+        expected_payload_json = json.dumps(expected_payload)
+        expected_signature = hmac.new(
+            "test_secret".encode(),
+            expected_payload_json.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        self.assertEqual(
+            mock_post.call_args[1]["headers"]["X-Webhook-Signature"],
+            expected_signature
+        )
+
+    @patch("src.rp_handler.requests.post")
+    @patch("builtins.open", mock_open(read_data=b"test_image_data"))
+    @patch.dict(os.environ, {
+        "RESULT_IMAGE_WEBHOOK_URL": "http://webhook.example.com",
+        "RESULT_IMAGE_WEBHOOK_SECRET": "test_secret"
+    })
+    def test_send_image_to_webhook_failure(self, mock_post):
+        # Mock failed webhook response
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_post.return_value = mock_response
+
+        # Test the webhook function with explicit parameters
+        result = rp_handler.send_image_to_webhook(
+            "test_image.png", 
+            "job123", 
+            "http://webhook.example.com", 
+            "test_secret"
+        )
+        
+        # Check the result is False
+        self.assertFalse(result)
+        
+        # Verify the mock was called
+        mock_post.assert_called_once()
+
+    @patch("src.rp_handler.requests.post")
+    @patch("builtins.open", mock_open(read_data=b"test_image_data"))
+    @patch.dict(os.environ, {
+        "RESULT_IMAGE_WEBHOOK_URL": "http://webhook.example.com",
+        "RESULT_IMAGE_WEBHOOK_SECRET": "test_secret"
+    })
+    def test_send_image_to_webhook_exception(self, mock_post):
+        # Mock an exception during webhook call
+        mock_post.side_effect = Exception("Network error")
+
+        # Test the webhook function with explicit parameters
+        result = rp_handler.send_image_to_webhook(
+            "test_image.png", 
+            "job123", 
+            "http://webhook.example.com", 
+            "test_secret"
+        )
+        
+        # Check the result is False
+        self.assertFalse(result)
+        
+        # Verify the mock was called
+        mock_post.assert_called_once()
+
+    @patch("src.rp_handler.os.path.exists")
+    @patch("src.rp_handler.rp_upload.files")
+    @patch("src.rp_handler.send_image_to_webhook")
+    @patch.dict(os.environ, {
+        "COMFY_OUTPUT_PATH": RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES,
+        "BUCKET_ENDPOINT_URL": "http://example.com",
+        "RESULT_IMAGE_WEBHOOK_URL": "http://webhook.example.com",
+        "RESULT_IMAGE_WEBHOOK_SECRET": "test_secret"
+    })
+    def test_process_output_images_with_webhook(self, mock_webhook, mock_files, mock_exists):
+        # Mock the os.path.exists to return True
+        mock_exists.return_value = True
+        
+        # Mock the webhook call to return True (success)
+        mock_webhook.return_value = True
+        
+        # Mock the S3 upload to return a URL
+        mock_files.return_value = ["http://example.com/uploaded/image.png"]
+
+        # Define the outputs and job_id for the test
+        outputs = {"node_id": {"images": [{"filename": "ComfyUI_00001_.png", "subfolder": ""}]}}
+        job_id = "123"
+
+        # Call the function under test
+        result = rp_handler.process_output_images(outputs, job_id)
+
+        # Assertions for normal S3 upload flow
+        self.assertTrue(isinstance(result, list))
+        self.assertEqual(result[0]["status"], "success")
+        self.assertEqual(result[0]["message"], "http://example.com/uploaded/image.png")
+        
+        # Assert that webhook was called with all four parameters
+        mock_webhook.assert_called_once_with(
+            f"{RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}/ComfyUI_00001_.png", 
+            "123",
+            "http://webhook.example.com",
+            "test_secret"
+        )
+
+    @patch("src.rp_handler.os.path.exists")
+    @patch("src.rp_handler.base64_encode")
+    @patch("src.rp_handler.send_image_to_webhook")
+    @patch.dict(os.environ, {
+        "COMFY_OUTPUT_PATH": RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES,
+        "RESULT_IMAGE_WEBHOOK_URL": "http://webhook.example.com",
+        "RESULT_IMAGE_WEBHOOK_SECRET": "test_secret"
+    })
+    def test_process_output_images_with_webhook_no_s3(self, mock_webhook, mock_base64_encode, mock_exists):
+        # Mock the os.path.exists to return True
+        mock_exists.return_value = True
+        
+        # Mock the webhook call to return False (failure, but should continue)
+        mock_webhook.return_value = False
+        
+        # Mock the base64 encoding
+        mock_base64_encode.return_value = "base64_encoded_image_data"
+
+        # Define the outputs and job_id for the test
+        outputs = {"node_id": {"images": [{"filename": "ComfyUI_00001_.png", "subfolder": ""}]}}
+        job_id = "123"
+
+        # Call the function under test
+        result = rp_handler.process_output_images(outputs, job_id)
+
+        # Assertions for base64 encoding flow
+        self.assertTrue(isinstance(result, list))
+        self.assertEqual(result[0]["status"], "success")
+        self.assertEqual(result[0]["message"], "base64_encoded_image_data")
+        
+        # Assert that webhook was called with all four parameters
+        mock_webhook.assert_called_once_with(
+            f"{RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}/ComfyUI_00001_.png", 
+            "123",
+            "http://webhook.example.com",
+            "test_secret"
+        )
+        
+        # Assert that base64 encoding was still performed
+        mock_base64_encode.assert_called_once_with(f"{RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES}/ComfyUI_00001_.png")
