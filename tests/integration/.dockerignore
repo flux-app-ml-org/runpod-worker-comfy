@@ -1,0 +1,35 @@
+# Git related files
+.git
+.gitignore
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Test related
+uploads/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Generated files that may be large
+data/output.png

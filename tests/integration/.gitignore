@@ -1,0 +1,18 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local test uploads
+uploads/
+
+# Test generated files
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Docker-compose generated files
+.env.local
+
+# Keep data folder but ignore generated files
+# data/*.log

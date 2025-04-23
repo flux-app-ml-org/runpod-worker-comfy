@@ -9,3 +9,4 @@ __pycache__
 *.safetensors
 
 credentials/*
+tests/integration/comfyui/output/*

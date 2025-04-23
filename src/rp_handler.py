@@ -1,5 +1,7 @@
+from typing import Optional, Tuple
+import uuid
+import boto3.session
 import runpod
-from runpod.serverless.utils import rp_upload
 import json
 import urllib.request
 import urllib.parse
@@ -13,6 +15,10 @@ import sys
 import hmac
 import hashlib
 from loki_logger_handler.loki_logger_handler import LokiLoggerHandler
+import boto3
+from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
+import multiprocessing
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -23,11 +29,22 @@ COMFY_POLLING_INTERVAL_MS = int(os.environ.get("COMFY_POLLING_INTERVAL_MS", 250)
 # Maximum number of poll attempts
 COMFY_POLLING_MAX_RETRIES = int(os.environ.get("COMFY_POLLING_MAX_RETRIES", 500))
 # Host where ComfyUI is running
-COMFY_HOST = "127.0.0.1:8188"
+COMFY_HOST = os.environ.get("COMFY_HOST", "127.0.0.1:8188")
+print(f"COMFY_HOST: {COMFY_HOST}")
 # Enforce a clean state after each job is done
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
 
+BUCKET_ACCESS_KEY_ID = os.environ.get("BUCKET_ACCESS_KEY_ID", None)
+BUCKET_SECRET_ACCESS_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY", None)
+BUCKET_ENDPOINT_URL = os.environ.get("BUCKET_ENDPOINT_URL", False)
+S3_REGION = os.environ.get("S3_REGION", None)
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", None)
+print(f"BUCKET_ENDPOINT_URL: {BUCKET_ENDPOINT_URL}")
+print(f"BUCKET_ACCESS_KEY_ID: {BUCKET_ACCESS_KEY_ID}")
+print(f"BUCKET_SECRET_ACCESS_KEY: {BUCKET_SECRET_ACCESS_KEY}")
+print(f"S3_REGION: {S3_REGION}")
+print(f"S3_BUCKET_NAME: {S3_BUCKET_NAME}")
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -306,40 +323,36 @@ def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOO
     Returns:
         bool: True if the URL was successfully sent, False otherwise
     """ 
+    if not inference_job_id:
+        logger.warning("No inference job id provided, skipping webhook", extra={})
+        return False
+    
     try:
-        # Create payload
         payload = {
             "job_id": job_id,
             "image_url": image_url,
-            "image_name": os.path.basename(image_url)
+            "image_name": os.path.basename(image_url).split("?")[0],
+            "inferenceJobId": inference_job_id
         }
         
-        # Add inferenceJobId if provided
-        if inference_job_id:
-            payload["inferenceJobId"] = inference_job_id
-            
-        # Convert payload to JSON
         payload_json = json.dumps(payload)
         
-        # Calculate HMAC signature
         signature = hmac.new(
             RESULT_IMAGE_WEBHOOK_SECRET.encode(),
             payload_json.encode(),
             hashlib.sha256
         ).hexdigest()
         
-        # Set headers with signature
         headers = {
             "Content-Type": "application/json",
             "X-Webhook-Signature": signature
         }
         
-        # Send the request
         response = requests.post(
             RESULT_IMAGE_WEBHOOK_URL,
             data=payload_json,
             headers=headers,
-            timeout=30  # 30 second timeout
+            timeout=30
         )
         
         if response.status_code >= 200 and response.status_code < 300:
@@ -357,9 +370,10 @@ def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOO
 def process_output_images(outputs, job_id, inference_job_id=None):
     """
     This function takes the "outputs" from image generation and the job ID,
-    then determines the correct way to return the image, either as a direct URL
-    to an AWS S3 bucket or as a base64 encoded string, depending on the
-    environment configuration.
+    then processes each generated image individually:
+    1. Uploads each image to S3 immediately as it's processed
+    2. Sends the S3 URL to the webhook for each image
+    3. Returns the results for all images
 
     Args:
         outputs (dict): A dictionary containing the outputs from image generation,
@@ -371,18 +385,6 @@ def process_output_images(outputs, job_id, inference_job_id=None):
         dict: A dictionary with the status ('success' or 'error') and the message,
               which is either the URL to the image in the AWS S3 bucket or a base64
               encoded string of the image. In case of error, the message details the issue.
-
-    The function works as follows:
-    - It first determines the output path for the images from an environment variable,
-      defaulting to "/comfyui/output" if not set.
-    - It then iterates through the outputs to find the filenames of the generated images.
-    - After confirming the existence of the image in the output folder, it checks if the
-      AWS S3 bucket is configured via the BUCKET_ENDPOINT_URL environment variable.
-    - If AWS S3 is configured, it uploads the image to the bucket and returns the URL.
-    - If AWS S3 is not configured, it encodes the image in base64 and returns the string.
-    - If the image file does not exist in the output folder, it returns an error status
-      with a message indicating the missing image file.
-    - If webhook URL and secret are configured, it attempts to send each image URL to the webhook.
     """
 
     # The path where ComfyUI stores the generated images
@@ -390,7 +392,6 @@ def process_output_images(outputs, job_id, inference_job_id=None):
     
     RESULT_IMAGE_WEBHOOK_URL = os.environ.get("RESULT_IMAGE_WEBHOOK_URL")
     RESULT_IMAGE_WEBHOOK_SECRET = os.environ.get("RESULT_IMAGE_WEBHOOK_SECRET")
-    BUCKET_ENDPOINT_URL = os.environ.get("BUCKET_ENDPOINT_URL", False)
     
     if not RESULT_IMAGE_WEBHOOK_URL or not RESULT_IMAGE_WEBHOOK_SECRET:
         logger.warning("Webhook URL or secret not configured, skipping webhook", extra={})
@@ -408,11 +409,10 @@ def process_output_images(outputs, job_id, inference_job_id=None):
     logger.info("Image generation is done", extra={})
 
     results = []
-    local_image_paths = []
 
     for image_path in output_images:
         local_image_path = f"{COMFY_OUTPUT_PATH}/{image_path}"
-        logger.info("Checking local image path", extra={"local_image_path": local_image_path})
+        logger.info("Processing image", extra={"local_image_path": local_image_path})
         
         if not os.path.exists(local_image_path):
             logger.error("The image does not exist in the output folder", extra={"local_image_path": local_image_path})
@@ -422,29 +422,20 @@ def process_output_images(outputs, job_id, inference_job_id=None):
             })
             continue
 
-        local_image_paths.append(local_image_path)
-        
-        # Send image to webhook - original behavior for tests to pass
-        if RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET:
+        if not BUCKET_ENDPOINT_URL and RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET:
             webhook_result = send_image_to_webhook(local_image_path, job_id, RESULT_IMAGE_WEBHOOK_URL, RESULT_IMAGE_WEBHOOK_SECRET)
             if webhook_result:
                 logger.info("Image sent to webhook successfully", extra={"local_image_path": local_image_path})
             else:
                 logger.warning("Failed to send image to webhook", extra={"local_image_path": local_image_path})
 
-    # If S3 is configured, upload all images at once
-    if BUCKET_ENDPOINT_URL:
-        image_urls = rp_upload.files(job_id, local_image_paths)
-        
-        # If upload failed, return empty list (for test compatibility)
-        if not image_urls:
-            logger.error("Failed to upload images to S3", extra={"local_image_paths": local_image_paths})
-            return []
-        
-        for i, image_url in enumerate(image_urls):
-            logger.info("Image was uploaded to S3", extra={"image_url": image_url})
+        try:
+            # Upload the image to S3 immediately
+            image_url = upload_image(job_id, local_image_path)
             
-            # If webhook and inferenceJobId are configured, send URL to webhook
+            logger.info("Image was uploaded to S3:", extra={"image_url": image_url})
+            
+            # If webhook and inferenceJobId are configured, send URL to webhook immediately
             if RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET and inference_job_id:
                 webhook_result = send_url_to_webhook(
                     image_url, 
@@ -462,18 +453,13 @@ def process_output_images(outputs, job_id, inference_job_id=None):
                 "status": "success",
                 "message": image_url,
             })
-            
-        return results
-    
-    # If S3 not configured, return base64 encoded images
-    for local_image_path in local_image_paths:
-        # Base64 encode the image
-        image = base64_encode(local_image_path)
-        results.append({
-            "status": "success",
-            "message": image,
-        })
-        logger.info("The image was generated and converted to base64", extra={})
+        except Exception as e:
+            logger.error("Failed to upload image to S3", extra={"local_image_path": local_image_path, "error": str(e)})
+            logger.debug(e)
+            results.append({
+                "status": "error",
+                "message": f"Failed to upload image to S3: {str(e)}",
+            })
 
     return results
 
@@ -483,7 +469,7 @@ def handler(job):
     The main function that handles a job of generating images.
 
     This function validates each workflow input, sends prompts to ComfyUI for processing,
-    polls ComfyUI for results, and retrieves generated images.
+    polls ComfyUI for results, and processes generated images as they become available.
 
     Args:
         job (dict): A dictionary containing job details and input parameters.
@@ -491,6 +477,14 @@ def handler(job):
     Returns:
         dict: A dictionary containing either an error message or a success status with generated images.
     """
+    s3_required_keys = ["BUCKET_ENDPOINT_URL", "BUCKET_ACCESS_KEY_ID", "BUCKET_SECRET_ACCESS_KEY", "S3_REGION", "S3_BUCKET_NAME"]
+    s3_missing_keys = [key for key in s3_required_keys if not os.environ.get(key)]
+    
+    if len(s3_missing_keys) > 0:
+        e = f"S3 configuration is missing or imcomplete, missing key(s): {s3_missing_keys}"
+        logger.error(e, extra={})
+        return {"error": e}
+
     job_input = job["input"]
     workflows = job_input.get("workflow", [])
     inference_job_id = job_input.get("inferenceJobId")
@@ -537,30 +531,44 @@ def handler(job):
         logger.error("Error queuing workflows", extra={"error": str(e)})
         return {"error": f"Error queuing workflows: {str(e)}"}
 
-    # Poll for completion of all workflows
-    logger.info("Waiting until image generation is complete for all workflows", extra={})
+    # Poll for completion of workflows and process images as they become available
+    logger.info("Waiting for image generation and processing images as they complete", extra={})
     retries = 0
-    completed_images = {}
+    completed_prompt_ids = set()
+    images_results = []
 
     try:
-        while retries < COMFY_POLLING_MAX_RETRIES:
-            all_completed = True
+        while retries < COMFY_POLLING_MAX_RETRIES and len(completed_prompt_ids) < len(prompt_ids):
             for prompt_id in prompt_ids:
+                # Skip prompts we've already processed
+                if prompt_id in completed_prompt_ids:
+                    continue
+                    
                 history = get_history(prompt_id)
 
+                # Check if this prompt has completed
                 if prompt_id in history and history[prompt_id].get("outputs"):
-                    completed_images[prompt_id] = history[prompt_id].get("outputs")
-                else:
-                    all_completed = False
-
-            if all_completed:
+                    logger.info("Workflow completed, processing results", extra={"prompt_id": prompt_id})
+                    
+                    # Process the images for this completed workflow immediately
+                    outputs = history[prompt_id].get("outputs")
+                    images_result = process_output_images(outputs, job["id"], inference_job_id)
+                    # spread the images_result into the images_results array                    
+                    images_results.extend(images_result)
+                    
+                    # Mark this prompt as processed
+                    completed_prompt_ids.add(prompt_id)
+            
+            # If all prompts are completed, break out of the loop
+            if len(completed_prompt_ids) == len(prompt_ids):
                 break
-            else:
-                # Wait before trying again
-                time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
-                retries += 1
+                
+            # Wait before checking again
+            time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
+            retries += 1
 
-        if not all_completed:
+        # Check if we hit the retry limit
+        if len(completed_prompt_ids) < len(prompt_ids):
             logger.error("Max retries reached while waiting for image generation", extra={})
             return {"error": "Max retries reached while waiting for image generation"}
 
@@ -568,17 +576,77 @@ def handler(job):
         logger.error("Error waiting for image generation", extra={"error": str(e)})
         return {"error": f"Error waiting for image generation: {str(e)}"}
 
-    # Process and return all generated images
-    images_results = []
-    for prompt_id, outputs in completed_images.items():
-        images_result = process_output_images(outputs, job["id"], inference_job_id)
-        images_results.append(images_result)
-
     result = {"result": images_results, "refresh_worker": REFRESH_WORKER}
     logger.info("Image generation completed successfully", extra={"result": result})
 
     return result
 
+def get_boto_client(
+) -> Tuple[
+    boto3.client, TransferConfig
+]:
+    """
+    Returns a boto3 client and transfer config for the bucket.
+    """
+    bucket_session = boto3.session.Session()
+
+    boto_config = Config(
+        signature_version="s3v4", retries={"max_attempts": 3, "mode": "standard"}
+    )
+
+    transfer_config = TransferConfig(
+        multipart_threshold=1024 * 25,
+        max_concurrency=multiprocessing.cpu_count(),
+        multipart_chunksize=1024 * 25,
+        use_threads=True,
+    )
+    
+    boto_client = bucket_session.client(
+        "s3",
+        endpoint_url=BUCKET_ENDPOINT_URL,
+        aws_access_key_id=BUCKET_ACCESS_KEY_ID,
+        aws_secret_access_key=BUCKET_SECRET_ACCESS_KEY,
+        config=boto_config,
+        region_name=S3_REGION,
+        )
+
+    return boto_client, transfer_config
+
+def upload_image(
+    job_id,
+    image_location,
+    result_index=0,
+    results_list=None,
+):
+    """
+    Upload a single file to bucket storage.
+    """
+    image_name = str(uuid.uuid4())[:8]
+    boto_client, _ = get_boto_client()
+    file_extension = os.path.splitext(image_location)[1]
+    content_type = "image/" + file_extension.lstrip(".")
+
+    with open(image_location, "rb") as input_file:
+        output = input_file.read()
+
+    print(f"Uploading image to bucket: {S3_BUCKET_NAME}")
+    boto_client.put_object(
+        Bucket=f"{S3_BUCKET_NAME}",
+        Key=f"{job_id}/{image_name}{file_extension}",
+        Body=output,
+        ContentType=content_type,
+    )
+
+    presigned_url = boto_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": f"{S3_BUCKET_NAME}", "Key": f"{job_id}/{image_name}{file_extension}"},
+        ExpiresIn=604800,
+    )
+
+    if results_list is not None:
+        results_list[result_index] = presigned_url
+
+    return presigned_url
 
 # Start the handler only if this script is run directly
 if __name__ == "__main__":

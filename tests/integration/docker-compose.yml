@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+  integration-tests:
+    build:
+      context: ../..
+      dockerfile: tests/integration/Dockerfile
+    volumes:
+      # Mount the current directory to capture test results
+      - ./:/app/tests/integration
+      # Mount the source code
+      - ../../src:/app/src
+      # Explicitly mount the data directory
+      - ./data:/app/tests/integration/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - COMFY_OUTPUT_PATH=/comfyui/output
+      - COMFY_HOST=127.0.0.1:8188  # Changed to localhost since ComfyUI runs in the same container
+      - COMFY_POLLING_INTERVAL_MS=100
+      - COMFY_POLLING_MAX_RETRIES=100
+      - RESULT_IMAGE_WEBHOOK_URL=http://mock-webhook:8189/webhook
+      - RESULT_IMAGE_WEBHOOK_SECRET=test-webhook-secret
+      - BUCKET_ENDPOINT_URL=http://minio:9000
+      - BUCKET_ACCESS_KEY_ID=minioadmin
+      - BUCKET_SECRET_ACCESS_KEY=minioadmin
+    depends_on:
+      - mock-webhook
+      - minio
+    networks:
+      - test-network
+    # Run the start-services script
+    command: >
+      bash -c "
+        chmod +x ./bin/start-services.sh &&
+        ./bin/start-services.sh
+      "
+
+  mock-webhook:
+    build:
+      context: ../..
+      dockerfile: tests/integration/Dockerfile
+    command: python -u /app/tests/integration/mock_webhook_server.py
+    volumes:
+      - ./:/app/tests/integration
+      - ./data:/app/tests/integration/data
+    environment:
+      - PYTHONPATH=/app
+      - WEBHOOK_PORT=8189
+      - RESULT_IMAGE_WEBHOOK_SECRET=test-webhook-secret
+    ports:
+      - "8189:8189"
+    networks:
+      - test-network
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - ./data/s3:/data
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
