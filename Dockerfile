@@ -27,7 +27,7 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfyui && \
 WORKDIR /comfyui
 
 # Install ComfyUI dependencies
-RUN pip3 install torch torchvision torchaudio xformers --extra-index-url https://download.pytorch.org/whl/cu126 \
+RUN pip3 install xformers torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126 \
     && pip3 install --upgrade -r requirements.txt
 
 # Install additional dependencies from requirements.txt in the project root
