@@ -30,7 +30,7 @@ COMFY_POLLING_INTERVAL_MS = int(os.environ.get("COMFY_POLLING_INTERVAL_MS", 250)
 COMFY_POLLING_MAX_RETRIES = int(os.environ.get("COMFY_POLLING_MAX_RETRIES", 500))
 # Host where ComfyUI is running
 COMFY_HOST = os.environ.get("COMFY_HOST", "127.0.0.1:8188")
-print(f"COMFY_HOST: {COMFY_HOST}")
+
 # Enforce a clean state after each job is done
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
@@ -40,11 +40,6 @@ BUCKET_SECRET_ACCESS_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY", None)
 BUCKET_ENDPOINT_URL = os.environ.get("BUCKET_ENDPOINT_URL", False)
 S3_REGION = os.environ.get("S3_REGION", None)
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", None)
-print(f"BUCKET_ENDPOINT_URL: {BUCKET_ENDPOINT_URL}")
-print(f"BUCKET_ACCESS_KEY_ID: {BUCKET_ACCESS_KEY_ID}")
-print(f"BUCKET_SECRET_ACCESS_KEY: {BUCKET_SECRET_ACCESS_KEY}")
-print(f"S3_REGION: {S3_REGION}")
-print(f"S3_BUCKET_NAME: {S3_BUCKET_NAME}")
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -355,12 +350,7 @@ def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOO
             timeout=30
         )
         
-        if response.status_code >= 200 and response.status_code < 300:
-            logger.info("Successfully sent image URL to webhook", extra={"image_url": image_url, "status_code": response.status_code})
-            return True
-        else:
-            logger.error("Failed to send image URL to webhook", extra={"image_url": image_url, "status_code": response.status_code, "response": response.text})
-            return False
+        return response.status_code >= 200 and response.status_code < 300
             
     except Exception as e:
         logger.error("Error sending image URL to webhook", extra={"image_url": image_url, "error": str(e)})
@@ -426,7 +416,7 @@ def process_output_images(outputs, job_id, inference_job_id=None):
             # Upload the image to S3 immediately
             image_url = upload_image(job_id, local_image_path)
             
-            logger.info("Image was uploaded to S3:", extra={"image_url": image_url})
+            logger.info("Image uploaded to S3", extra={"image_url": image_url})
             
             # If webhook and inferenceJobId are configured, send URL to webhook immediately
             if RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET and inference_job_id:
@@ -622,7 +612,7 @@ def upload_image(
     with open(image_location, "rb") as input_file:
         output = input_file.read()
 
-    print(f"Uploading image to bucket: {S3_BUCKET_NAME}")
+    logger.info("Uploading image to bucket", extra={"bucket_name": S3_BUCKET_NAME, "job_id": job_id, "image_name": image_name, "file_extension": file_extension})
     boto_client.put_object(
         Bucket=f"{S3_BUCKET_NAME}",
         Key=f"{job_id}/{image_name}{file_extension}",
