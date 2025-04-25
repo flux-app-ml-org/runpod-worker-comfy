@@ -422,13 +422,6 @@ def process_output_images(outputs, job_id, inference_job_id=None):
             })
             continue
 
-        if not BUCKET_ENDPOINT_URL and RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET:
-            webhook_result = send_image_to_webhook(local_image_path, job_id, RESULT_IMAGE_WEBHOOK_URL, RESULT_IMAGE_WEBHOOK_SECRET)
-            if webhook_result:
-                logger.info("Image sent to webhook successfully", extra={"local_image_path": local_image_path})
-            else:
-                logger.warning("Failed to send image to webhook", extra={"local_image_path": local_image_path})
-
         try:
             # Upload the image to S3 immediately
             image_url = upload_image(job_id, local_image_path)
