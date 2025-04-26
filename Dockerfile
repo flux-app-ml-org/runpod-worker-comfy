@@ -1,5 +1,5 @@
 # Stage 1: Base image with common dependencies
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04 as base
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04 as base
 
 # Prevents prompts from packages asking for user input during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -27,7 +27,7 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfyui && \
 WORKDIR /comfyui
 
 # Install ComfyUI dependencies
-RUN pip3 install torch torchvision torchaudio xformers --extra-index-url https://download.pytorch.org/whl/cu126 \
+RUN pip3 install xformers torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128 \
     && pip3 install --upgrade -r requirements.txt
 
 # Install additional dependencies from requirements.txt in the project root
