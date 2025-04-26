@@ -30,6 +30,16 @@ WORKDIR /comfyui
 RUN pip3 install torch torchvision torchaudio xformers --index-url https://download.pytorch.org/whl/cu126 \
     && pip3 install --upgrade -r requirements.txt
 
+# Patch xformers triton vararg_kernel.py, ref: https://github.com/facebookresearch/xformers/issues/1229
+RUN mkdir -p /tmp/patches && \
+    echo 'if hasattr(jitted_fn, "_unsafe_update_src"):' > /tmp/patches/xformers_patch.txt && \
+    echo '        jitted_fn._unsafe_update_src(new_src)' >> /tmp/patches/xformers_patch.txt && \
+    echo '        jitted_fn.hash = None' >> /tmp/patches/xformers_patch.txt && \
+    echo '    else:' >> /tmp/patches/xformers_patch.txt && \
+    echo '        jitted_fn.src = new_src' >> /tmp/patches/xformers_patch.txt && \
+    sed -i 's/    jitted_fn.src = new_src/'"$(cat /tmp/patches/xformers_patch.txt | sed 's/\//\\\//g')"'/g' /usr/local/lib/python3.10/dist-packages/xformers/triton/vararg_kernel.py && \
+    rm -rf /tmp/patches
+
 # Install additional dependencies from requirements.txt in the project root
 COPY requirements.txt /requirements.txt
 RUN pip3 install --upgrade -r /requirements.txt
