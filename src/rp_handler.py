@@ -246,66 +246,6 @@ def base64_encode(img_path):
         logger.info("Encoded image to base64", extra={"img_path": img_path})
         return f"{encoded_string}"
 
-
-def send_image_to_webhook(image_path, job_id, RESULT_IMAGE_WEBHOOK_URL, RESULT_IMAGE_WEBHOOK_SECRET):
-    """
-    Sends an image to the configured webhook URL with HMAC authentication.
-    
-    Args:
-        image_path (str): The path to the image file to send
-        job_id (str): The unique job identifier
-        
-    Returns:
-        bool: True if the image was successfully sent, False otherwise
-    """ 
-    try:
-        # Read and encode the image
-        with open(image_path, "rb") as image_file:
-            image_data = base64.b64encode(image_file.read()).decode("utf-8")
-            
-        # Create payload
-        payload = {
-            "job_id": job_id,
-            "image_data": image_data,
-            "image_name": os.path.basename(image_path)
-        }
-        
-        # Convert payload to JSON
-        payload_json = json.dumps(payload)
-        
-        # Calculate HMAC signature
-        signature = hmac.new(
-            RESULT_IMAGE_WEBHOOK_SECRET.encode(),
-            payload_json.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        
-        # Set headers with signature
-        headers = {
-            "Content-Type": "application/json",
-            "X-Webhook-Signature": signature
-        }
-        
-        # Send the request
-        response = requests.post(
-            RESULT_IMAGE_WEBHOOK_URL,
-            data=payload_json,
-            headers=headers,
-            timeout=30  # 30 second timeout
-        )
-        
-        if response.status_code >= 200 and response.status_code < 300:
-            logger.info("Successfully sent image to webhook", extra={"image_path": image_path, "status_code": response.status_code})
-            return True
-        else:
-            logger.error("Failed to send image to webhook", extra={"image_path": image_path, "status_code": response.status_code, "response": response.text})
-            return False
-            
-    except Exception as e:
-        logger.error("Error sending image to webhook", extra={"image_path": image_path, "error": str(e)})
-        return False
-
-
 def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOOK_URL, RESULT_IMAGE_WEBHOOK_SECRET):
     """
     Sends an image URL to the configured webhook URL with HMAC authentication.
@@ -472,7 +412,7 @@ def handler(job):
     workflows = job_input.get("workflow", [])
     inference_job_id = job_input.get("inferenceJobId")
 
-    if not workflows:
+    if not workflows or len(workflows) == 0:
         logger.error("No workflows provided", extra={})
         return {"error": "No workflows provided"}
 
