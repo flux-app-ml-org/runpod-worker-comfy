@@ -26,7 +26,6 @@ services:
       - BUCKET_ACCESS_KEY_ID=minioadmin
       - BUCKET_SECRET_ACCESS_KEY=minioadmin
     depends_on:
-      - mock-webhook
       - minio
     networks:
       - test-network
@@ -36,23 +35,6 @@ services:
         chmod +x ./bin/start-services.sh &&
         ./bin/start-services.sh
       "
-
-  mock-webhook:
-    build:
-      context: ../..
-      dockerfile: tests/integration/Dockerfile
-    command: python -u /app/tests/integration/mock_webhook_server.py
-    volumes:
-      - ./:/app/tests/integration
-      - ./data:/app/tests/integration/data
-    environment:
-      - PYTHONPATH=/app
-      - WEBHOOK_PORT=8189
-      - RESULT_IMAGE_WEBHOOK_SECRET=test-webhook-secret
-    ports:
-      - "8189:8189"
-    networks:
-      - test-network
 
   minio:
     image: minio/minio
