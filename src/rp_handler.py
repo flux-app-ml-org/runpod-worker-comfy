@@ -35,34 +35,51 @@ COMFY_HOST = os.environ.get("COMFY_HOST", "127.0.0.1:8188")
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
 
+# S3 Storage configuration
 BUCKET_ACCESS_KEY_ID = os.environ.get("BUCKET_ACCESS_KEY_ID", None)
 BUCKET_SECRET_ACCESS_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY", None)
 BUCKET_ENDPOINT_URL = os.environ.get("BUCKET_ENDPOINT_URL", False)
 S3_REGION = os.environ.get("S3_REGION", None)
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", None)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# Webhook configuration for image notifications
+RESULT_IMAGE_WEBHOOK_URL = os.environ.get("RESULT_IMAGE_WEBHOOK_URL")
+RESULT_IMAGE_WEBHOOK_SECRET = os.environ.get("RESULT_IMAGE_WEBHOOK_SECRET")
 
-LOKI_URL = os.getenv("LOKI_URL")
+# The path where ComfyUI stores the generated images
+COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
 
-if LOKI_URL:
-    logger.info("Configuring Loki logging.")
-    loki_handler = LokiLoggerHandler(
-        url=LOKI_URL,
-        labels={"app": "flux-app-inference-serverless-worker"}
-    )
-    logger.addHandler(loki_handler)
-else:
-    logger.warning("Loki credentials not provided, falling back to local logging.")
-    
-    local_handler = logging.StreamHandler(sys.stdout)
-    local_handler.setLevel(logging.DEBUG)
-    
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    local_handler.setFormatter(formatter)
-    
-    logger.addHandler(local_handler)
+# Module-level logger
+logger = None
+
+def setup_logger():
+    """
+    Sets up and configures the module-level logger instance.
+    """
+    global logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    LOKI_URL = os.getenv("LOKI_URL")
+
+    if LOKI_URL:
+        logger.info("Configuring Loki logging.")
+        loki_handler = LokiLoggerHandler(
+            url=LOKI_URL,
+            labels={"app": "flux-app-inference-serverless-worker"}
+        )
+        logger.addHandler(loki_handler)
+    else:
+        logger.warning("Loki credentials not provided, falling back to local logging.")
+        
+        local_handler = logging.StreamHandler(sys.stdout)
+        local_handler.setLevel(logging.DEBUG)
+        
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        local_handler.setFormatter(formatter)
+        
+        logger.addHandler(local_handler)
+
 def validate_input(job_input):
     """
     Validates the input for the handler function.
@@ -246,7 +263,7 @@ def base64_encode(img_path):
         logger.info("Encoded image to base64", extra={"img_path": img_path})
         return f"{encoded_string}"
 
-def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOOK_URL, RESULT_IMAGE_WEBHOOK_SECRET):
+def send_url_to_webhook(image_url, job_id, inference_job_id):
     """
     Sends an image URL to the configured webhook URL with HMAC authentication.
     
@@ -260,6 +277,10 @@ def send_url_to_webhook(image_url, job_id, inference_job_id, RESULT_IMAGE_WEBHOO
     """ 
     if not inference_job_id:
         logger.warning("No inference job id provided, skipping webhook", extra={})
+        return False
+    
+    if not RESULT_IMAGE_WEBHOOK_URL or not RESULT_IMAGE_WEBHOOK_SECRET:
+        logger.warning("Webhook URL or secret not configured, skipping webhook", extra={})
         return False
     
     try:
@@ -316,16 +337,7 @@ def process_output_images(outputs, job_id, inference_job_id=None):
               which is either the URL to the image in the AWS S3 bucket or a base64
               encoded string of the image. In case of error, the message details the issue.
     """
-
-    # The path where ComfyUI stores the generated images
-    COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
     
-    RESULT_IMAGE_WEBHOOK_URL = os.environ.get("RESULT_IMAGE_WEBHOOK_URL")
-    RESULT_IMAGE_WEBHOOK_SECRET = os.environ.get("RESULT_IMAGE_WEBHOOK_SECRET")
-    
-    if not RESULT_IMAGE_WEBHOOK_URL or not RESULT_IMAGE_WEBHOOK_SECRET:
-        logger.warning("Webhook URL or secret not configured, skipping webhook", extra={})
-
     output_images = []
 
     logger.info("Processing output images", extra={"outputs": outputs})
@@ -358,14 +370,12 @@ def process_output_images(outputs, job_id, inference_job_id=None):
             
             logger.info("Image uploaded to S3", extra={"image_url": image_url})
             
-            # If webhook and inferenceJobId are configured, send URL to webhook immediately
-            if RESULT_IMAGE_WEBHOOK_URL and RESULT_IMAGE_WEBHOOK_SECRET and inference_job_id:
+            # If inferenceJobId is provided, send URL to webhook immediately
+            if inference_job_id:
                 webhook_result = send_url_to_webhook(
                     image_url, 
                     job_id, 
-                    inference_job_id, 
-                    RESULT_IMAGE_WEBHOOK_URL, 
-                    RESULT_IMAGE_WEBHOOK_SECRET
+                    inference_job_id
                 )
                 if webhook_result:
                     logger.info("Image URL sent to webhook successfully", extra={"image_url": image_url})
@@ -400,11 +410,26 @@ def handler(job):
     Returns:
         dict: A dictionary containing either an error message or a success status with generated images.
     """
-    s3_required_keys = ["BUCKET_ENDPOINT_URL", "BUCKET_ACCESS_KEY_ID", "BUCKET_SECRET_ACCESS_KEY", "S3_REGION", "S3_BUCKET_NAME"]
-    s3_missing_keys = [key for key in s3_required_keys if not os.environ.get(key)]
+    try:
+        setup_logger()
+    except Exception as e:
+        logger.error("Error setting up logger", extra={"error": str(e)})
     
-    if len(s3_missing_keys) > 0:
-        e = f"S3 configuration is missing or imcomplete, missing key(s): {s3_missing_keys}"
+    # Check that all required S3 configuration is available
+    s3_missing_config = []
+    if not BUCKET_ENDPOINT_URL:
+        s3_missing_config.append("BUCKET_ENDPOINT_URL")
+    if not BUCKET_ACCESS_KEY_ID:
+        s3_missing_config.append("BUCKET_ACCESS_KEY_ID")
+    if not BUCKET_SECRET_ACCESS_KEY:
+        s3_missing_config.append("BUCKET_SECRET_ACCESS_KEY")
+    if not S3_REGION:
+        s3_missing_config.append("S3_REGION")
+    if not S3_BUCKET_NAME:
+        s3_missing_config.append("S3_BUCKET_NAME")
+    
+    if len(s3_missing_config) > 0:
+        e = f"S3 configuration is missing or incomplete, missing key(s): {s3_missing_config}"
         logger.error(e, extra={})
         return {"error": e}
 
