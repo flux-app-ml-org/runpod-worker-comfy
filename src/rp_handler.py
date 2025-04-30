@@ -45,6 +45,7 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", None)
 # Webhook configuration for image notifications
 RESULT_IMAGE_WEBHOOK_URL = os.environ.get("RESULT_IMAGE_WEBHOOK_URL")
 RESULT_IMAGE_WEBHOOK_SECRET = os.environ.get("RESULT_IMAGE_WEBHOOK_SECRET")
+WEBHOOK_VERIFY_SSL = os.environ.get("WEBHOOK_VERIFY_SSL", "true").lower() == "true"
 
 # The path where ComfyUI stores the generated images
 COMFY_OUTPUT_PATH = os.environ.get("COMFY_OUTPUT_PATH", "/comfyui/output")
@@ -308,7 +309,8 @@ def send_url_to_webhook(image_url, job_id, inference_job_id):
             RESULT_IMAGE_WEBHOOK_URL,
             data=payload_json,
             headers=headers,
-            timeout=30
+            timeout=30,
+            verify=WEBHOOK_VERIFY_SSL
         )
         
         return response.status_code >= 200 and response.status_code < 300
