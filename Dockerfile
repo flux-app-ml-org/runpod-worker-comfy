@@ -37,9 +37,11 @@ RUN pip3 install --upgrade -r /requirements.txt
 # Support for the network volume
 ADD src/extra_model_paths.yaml ./
 
-# Add scripts that don't change frequently
-COPY src/start.sh /start.sh
-COPY test_input.json ./
+# Go back to the root
+WORKDIR /
+
+# Add the start and the handler
+ADD src/start.sh src/rp_handler.py test_input.json ./
 RUN chmod +x /start.sh
 
 # Add the script to clone custom nodes
@@ -67,9 +69,6 @@ COPY --from=downloader /models/depthanything /comfyui/models/depthanything
 
 # Execute the script to clone repositories and install dependencies
 RUN /clone_and_install.sh
-
-# Add the frequently changing handler file last to optimize build caching
-COPY src/rp_handler.py /rp_handler.py
 
 # Start the container
 CMD /start.sh
