@@ -16,35 +16,38 @@ Read our article here: https://blib.la/blog/comfyui-on-runpod
 
 <!-- toc -->
 
-- [Quickstart](#quickstart)
-- [Features](#features)
-- [Config](#config)
-  * [Upload image to AWS S3](#upload-image-to-aws-s3)
-- [Use the Docker image on RunPod](#use-the-docker-image-on-runpod)
-  * [Create your template (optional)](#create-your-template-optional)
-  * [Create your endpoint](#create-your-endpoint)
-  * [GPU recommendations](#gpu-recommendations)
-- [API specification](#api-specification)
-  * [JSON Request Body](#json-request-body)
-  * [Fields](#fields)
-    + ["input.images"](#inputimages)
-- [Interact with your RunPod API](#interact-with-your-runpod-api)
-  * [Health status](#health-status)
-  * [Generate an image](#generate-an-image)
-    + [Example request for SDXL with cURL](#example-request-for-sdxl-with-curl)
-- [How to get the workflow from ComfyUI?](#how-to-get-the-workflow-from-comfyui)
-- [Bring Your Own Models and Nodes](#bring-your-own-models-and-nodes)
-  * [Network Volume](#network-volume)
-  * [Custom Docker Image](#custom-docker-image)
-- [Local testing](#local-testing)
-  * [Setup](#setup)
-    + [Setup for Windows](#setup-for-windows)
-  * [Testing the RunPod handler](#testing-the-runpod-handler)
-  * [Local API](#local-api)
-    + [Access the local Worker API](#access-the-local-worker-api)
-    + [Access local ComfyUI](#access-local-comfyui)
-- [Automatically deploy to Docker hub with GitHub Actions](#automatically-deploy-to-docker-hub-with-github-actions)
-- [Acknowledgments](#acknowledgments)
+- [runpod-worker-comfy](#runpod-worker-comfy)
+  - [Quickstart](#quickstart)
+  - [Features](#features)
+  - [Config](#config)
+    - [Upload image to AWS S3](#upload-image-to-aws-s3)
+    - [Webhook Configuration](#webhook-configuration)
+    - [Logging Configuration](#logging-configuration)
+  - [Use the Docker image on RunPod](#use-the-docker-image-on-runpod)
+    - [Create your template (optional)](#create-your-template-optional)
+    - [Create your endpoint](#create-your-endpoint)
+    - [GPU recommendations](#gpu-recommendations)
+  - [API specification](#api-specification)
+    - [JSON Request Body](#json-request-body)
+    - [Fields](#fields)
+      - ["input.images"](#inputimages)
+  - [Interact with your RunPod API](#interact-with-your-runpod-api)
+    - [Health status](#health-status)
+    - [Generate an image](#generate-an-image)
+      - [Example request for SDXL with cURL](#example-request-for-sdxl-with-curl)
+  - [How to get the workflow from ComfyUI?](#how-to-get-the-workflow-from-comfyui)
+  - [Bring Your Own Models and Nodes](#bring-your-own-models-and-nodes)
+    - [Network Volume](#network-volume)
+    - [Custom Docker Image](#custom-docker-image)
+  - [Local testing](#local-testing)
+    - [Setup](#setup)
+      - [Setup for Windows](#setup-for-windows)
+    - [Testing the RunPod handler](#testing-the-runpod-handler)
+    - [Local API](#local-api)
+      - [Access the local Worker API](#access-the-local-worker-api)
+      - [Access local ComfyUI](#access-local-comfyui)
+  - [Automatically deploy to Docker hub with GitHub Actions](#automatically-deploy-to-docker-hub-with-github-actions)
+  - [Acknowledgments](#acknowledgments)
 
 <!-- tocstop -->
 
@@ -82,27 +85,49 @@ Read our article here: https://blib.la/blog/comfyui-on-runpod
 
 ## Config
 
-| Environment Variable        | Description                                                                                                                                                                           | Default  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `REFRESH_WORKER`            | When you want to stop the worker after each finished job to have a clean state, see [official documentation](https://docs.runpod.io/docs/handler-additional-controls#refresh-worker). | `false`  |
-| `COMFY_POLLING_INTERVAL_MS` | Time to wait between poll attempts in milliseconds.                                                                                                                                   | `250`    |
-| `COMFY_POLLING_MAX_RETRIES` | Maximum number of poll attempts. This should be increased the longer your workflow is running.                                                                                        | `500`    |
-| `SERVE_API_LOCALLY`         | Enable local API server for development and testing. See [Local Testing](#local-testing) for more details.                                                                            | disabled |
+| Environment Variable        | Description                                                                                                                                                                           | Default Value |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `REFRESH_WORKER`            | When enabled, stops the worker after each finished job to ensure a clean state. See [official documentation](https://docs.runpod.io/docs/handler-additional-controls#refresh-worker).  | `false`       |
+| `COMFY_POLLING_INTERVAL_MS` | Time to wait between poll attempts in milliseconds when checking for completed workflows.                                                                                             | `250`         |
+| `COMFY_POLLING_MAX_RETRIES` | Maximum number of poll attempts. Should be increased for longer-running workflows.                                                                                                    | `500`         |
+| `COMFY_HOST`                | Host where ComfyUI is running.                                                                                                                                                        | `127.0.0.1:8188` |
+| `COMFY_OUTPUT_PATH`         | The directory path where ComfyUI stores generated images.                                                                                                                             | `/comfyui/output` |
+| `SERVE_API_LOCALLY`         | Enable local API server for development and testing. See [Local Testing](#local-testing) for more details.                                                                            | disabled      |
+| `COMFY_API_AVAILABLE_INTERVAL_MS` | Time to wait between API check attempts in milliseconds when verifying ComfyUI availability.                                                                                    | `50`          |
+| `COMFY_API_AVAILABLE_MAX_RETRIES` | Maximum number of API check attempts when verifying ComfyUI availability.                                                                                                       | `500`         |
 
 ### Upload image to AWS S3
 
 This is only needed if you want to upload the generated picture to AWS S3. If you don't configure this, your image will be exported as base64-encoded string.
 
-- Create a bucket in region of your choice in AWS S3 (`BUCKET_ENDPOINT_URL`)
+- Create a bucket in region of your choice in AWS S3
 - Create an IAM that has access rights to AWS S3
-- Create an Access-Key (`BUCKET_ACCESS_KEY_ID` & `BUCKET_SECRET_ACCESS_KEY`) for that IAM
+- Create an Access-Key for that IAM
 - Configure these environment variables for your RunPod worker:
 
-| Environment Variable       | Description                                             | Example                                      |
-| -------------------------- | ------------------------------------------------------- | -------------------------------------------- |
-| `BUCKET_ENDPOINT_URL`      | The endpoint URL of your S3 bucket.                     | `https://<bucket>.s3.<region>.amazonaws.com` |
-| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID for accessing the S3 bucket.     | `AKIAIOSFODNN7EXAMPLE`                       |
-| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key for accessing the S3 bucket. | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`   |
+| Environment Variable       | Description                                             | Default Value |
+| -------------------------- | ------------------------------------------------------- | ------------- |
+| `BUCKET_ENDPOINT_URL`      | The endpoint URL of your S3 bucket.                     | `false`       |
+| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID for accessing the S3 bucket.     | `None`        |
+| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key for accessing the S3 bucket. | `None`        |
+| `S3_REGION`                | The AWS region where your S3 bucket is located.         | `None`        |
+| `S3_BUCKET_NAME`           | The name of your S3 bucket to store the images.         | `None`        |
+
+### Webhook Configuration
+
+These settings are used for sending notifications about generated images to a webhook:
+
+| Environment Variable           | Description                                                      | Default Value |
+| ----------------------------- | ---------------------------------------------------------------- | ------------- |
+| `RESULT_IMAGE_WEBHOOK_URL`    | URL to send webhooks notifications to when images are generated.  | `None`        |
+| `RESULT_IMAGE_WEBHOOK_SECRET` | Secret key used for HMAC authentication of webhook requests.      | `None`        |
+| `WEBHOOK_VERIFY_SSL`          | Whether to verify SSL certificates when sending webhook requests. | `true`        |
+
+### Logging Configuration
+
+| Environment Variable | Description                                                        | Default Value |
+| ------------------- | ------------------------------------------------------------------ | ------------- |
+| `LOKI_URL`          | URL for Loki logging service. If not set, falls back to local logs. | `None`        |
 
 ## Use the Docker image on RunPod
 
