@@ -4,17 +4,46 @@ on:
   push:
     branches:
       - build*
+    # Skip builds for documentation-only changes
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  # Allow manual triggering with option to skip build
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip the build step'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Skip build if:
+    # 1. Commit message contains [skip ci] or [ci skip]
+    # 2. Manual dispatch with skip_build = true
+    # 3. Commit message contains [skip build]
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') && 
+      !contains(github.event.head_commit.message, '[ci skip]') && 
+      !contains(github.event.head_commit.message, '[skip build]') &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_build != 'true')
+    # Permissions to use OIDC token authentication
+    permissions:
+      contents: read
+      id-token: write
+      # Allows pushing to the GitHub Container Registry
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -22,13 +51,16 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        run: |
-          IMAGE_NAME=fajyz/runpod-worker-comfy
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $IMAGE_NAME:$IMAGE_TAG --platform linux/amd64 .
-          docker push $IMAGE_NAME:$IMAGE_TAG
+      - name: Set up Depot
+        uses: depot/setup-action@v1
 
-          # Optionally update the latest tag
-          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:latest
+      - name: Build and push Docker image
+        uses: depot/build-push-action@v1
+        with:
+          project: wf2rwqhlzs
+          context: .
+          push: true
+          tags: |
+            fajyz/runpod-worker-comfy:${{ github.sha }}
+            fajyz/runpod-worker-comfy:latest
+          platforms: linux/amd64

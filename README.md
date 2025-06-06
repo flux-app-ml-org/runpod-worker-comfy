@@ -47,6 +47,7 @@ Read our article here: https://blib.la/blog/comfyui-on-runpod
       - [Access the local Worker API](#access-the-local-worker-api)
       - [Access local ComfyUI](#access-local-comfyui)
   - [Automatically deploy to Docker hub with GitHub Actions](#automatically-deploy-to-docker-hub-with-github-actions)
+    - [Skip Build Options](#skip-build-options)
   - [Acknowledgments](#acknowledgments)
 
 <!-- tocstop -->
@@ -443,6 +444,26 @@ The repo contains two workflows that publish the image to Docker hub using GitHu
 
 - [dev.yml](.github/workflows/dev.yml): Creates the image and pushes it to Docker hub with the `dev` tag on every push to the `main` branch
 - [release.yml](.github/workflows/release.yml): Creates the image and pushes it to Docker hub with the `latest` and the release tag. It will only be triggered when you create a release on GitHub
+
+### Skip Build Options
+
+You can skip builds in several ways:
+
+1. **Commit Message Skip**: Include any of these in your commit message:
+   - `[skip ci]` - Skips the entire workflow
+   - `[ci skip]` - Skips the entire workflow  
+   - `[skip build]` - Skips only the build step
+
+2. **Manual Workflow Dispatch**: 
+   - Go to the Actions tab in your repository
+   - Select the "Build on Push to Build Branch" workflow
+   - Click "Run workflow" and set "Skip the build step" to `true`
+
+3. **Documentation-only Changes**: Builds are automatically skipped for changes to:
+   - `*.md` files
+   - `docs/` directory
+   - `.gitignore`
+   - `LICENSE`
 
 If you want to use this, you should add these **secrets** to your repository:
 
