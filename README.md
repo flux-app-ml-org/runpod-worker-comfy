@@ -440,10 +440,9 @@ docker-compose up
 
 ## Automatically deploy to Docker hub with GitHub Actions
 
-The repo contains two workflows that publish the image to Docker hub using GitHub Actions:
+The repo contains a workflow that publishes the image to Docker hub using GitHub Actions:
 
-- [dev.yml](.github/workflows/dev.yml): Creates the image and pushes it to Docker hub with the `dev` tag on every push to the `main` branch
-- [release.yml](.github/workflows/release.yml): Creates the image and pushes it to Docker hub with the `latest` and the release tag. It will only be triggered when you create a release on GitHub
+- [build.yml](.github/workflows/build.yml): Creates the image and pushes it to Docker hub with both the commit SHA and `latest` tags on every push to the `master` branch
 
 ### Skip Build Options
 
