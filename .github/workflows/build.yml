@@ -3,7 +3,7 @@ name: Build on Push to Build Branch
 on:
   push:
     branches:
-      - build*
+      - master
     # Skip builds for documentation-only changes
     paths-ignore:
       - '**.md'
